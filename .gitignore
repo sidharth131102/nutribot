@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+.pytest_cache/
+pytest-cache-files-*/
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment and local stores
+.env
+*.db
+rag/faiss_index/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+frontend/.env.local

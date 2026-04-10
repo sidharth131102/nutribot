@@ -1,0 +1,3969 @@
+[
+  {
+    "id": "FOOD_001",
+    "food": "oats",
+    "quantity_grams": 60,
+    "calories": 228,
+    "protein": 8,
+    "carbs": 40,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_002",
+    "food": "low-fat milk",
+    "quantity_grams": 250,
+    "calories": 105,
+    "protein": 8.5,
+    "carbs": 12,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "dairy"
+    ]
+  },
+  {
+    "id": "FOOD_003",
+    "food": "soy milk",
+    "quantity_grams": 250,
+    "calories": 95,
+    "protein": 7,
+    "carbs": 5,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_004",
+    "food": "banana",
+    "quantity_grams": 100,
+    "calories": 89,
+    "protein": 1.1,
+    "carbs": 23,
+    "fat": 0.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "kidney_limit_potassium"
+    ],
+    "tags": [
+      "fruit"
+    ]
+  },
+  {
+    "id": "FOOD_005",
+    "food": "tofu",
+    "quantity_grams": 150,
+    "calories": 180,
+    "protein": 18,
+    "carbs": 4,
+    "fat": 10,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_006",
+    "food": "paneer",
+    "quantity_grams": 100,
+    "calories": 265,
+    "protein": 18,
+    "carbs": 3,
+    "fat": 20,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "dairy"
+    ]
+  },
+  {
+    "id": "FOOD_007",
+    "food": "chicken breast",
+    "quantity_grams": 150,
+    "calories": 248,
+    "protein": 46,
+    "carbs": 0,
+    "fat": 5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein"
+    ]
+  },
+  {
+    "id": "FOOD_008",
+    "food": "egg whites",
+    "quantity_grams": 200,
+    "calories": 104,
+    "protein": 22,
+    "carbs": 1.4,
+    "fat": 0.4,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "egg"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein"
+    ]
+  },
+  {
+    "id": "FOOD_009",
+    "food": "brown rice",
+    "quantity_grams": 150,
+    "calories": 167,
+    "protein": 3.9,
+    "carbs": 34.5,
+    "fat": 1.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_010",
+    "food": "quinoa",
+    "quantity_grams": 150,
+    "calories": 180,
+    "protein": 6.6,
+    "carbs": 32,
+    "fat": 2.9,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_011",
+    "food": "whole wheat roti",
+    "quantity_grams": 80,
+    "calories": 220,
+    "protein": 7,
+    "carbs": 44,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_012",
+    "food": "dal",
+    "quantity_grams": 200,
+    "calories": 230,
+    "protein": 14,
+    "carbs": 34,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_fiber",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_013",
+    "food": "chickpea curry",
+    "quantity_grams": 200,
+    "calories": 320,
+    "protein": 15,
+    "carbs": 48,
+    "fat": 8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_014",
+    "food": "greek yogurt",
+    "quantity_grams": 200,
+    "calories": 146,
+    "protein": 20,
+    "carbs": 8,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "dairy"
+    ]
+  },
+  {
+    "id": "FOOD_015",
+    "food": "lentil soup",
+    "quantity_grams": 300,
+    "calories": 240,
+    "protein": 18,
+    "carbs": 36,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_fiber",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_016",
+    "food": "mixed vegetables",
+    "quantity_grams": 250,
+    "calories": 120,
+    "protein": 5,
+    "carbs": 22,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_017",
+    "food": "salmon",
+    "quantity_grams": 150,
+    "calories": 309,
+    "protein": 33,
+    "carbs": 0,
+    "fat": 18,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "omega_3"
+    ]
+  },
+  {
+    "id": "FOOD_018",
+    "food": "white fish",
+    "quantity_grams": 150,
+    "calories": 165,
+    "protein": 36,
+    "carbs": 0,
+    "fat": 1.5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein"
+    ]
+  },
+  {
+    "id": "FOOD_019",
+    "food": "olive oil",
+    "quantity_grams": 10,
+    "calories": 90,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 10,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "healthy_fat"
+    ]
+  },
+  {
+    "id": "FOOD_020",
+    "food": "almonds",
+    "quantity_grams": 20,
+    "calories": 116,
+    "protein": 4.2,
+    "carbs": 4.3,
+    "fat": 10,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "tree nuts"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat"
+    ]
+  },
+  {
+    "id": "FOOD_021",
+    "food": "apple",
+    "quantity_grams": 150,
+    "calories": 78,
+    "protein": 0.4,
+    "carbs": 21,
+    "fat": 0.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "fruit"
+    ]
+  },
+  {
+    "id": "FOOD_022",
+    "food": "whey protein",
+    "quantity_grams": 30,
+    "calories": 120,
+    "protein": 24,
+    "carbs": 3,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "high_protein"
+    ]
+  },
+  {
+    "id": "FOOD_023",
+    "food": "pea protein",
+    "quantity_grams": 30,
+    "calories": 110,
+    "protein": 24,
+    "carbs": 2,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_024",
+    "food": "idli",
+    "quantity_grams": 150,
+    "calories": 156,
+    "protein": 4.8,
+    "carbs": 32,
+    "fat": 0.6,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "fermented",
+      "complex_carbs",
+      "low_fat"
+    ]
+  },
+  {
+    "id": "FOOD_025",
+    "food": "dosa (plain)",
+    "quantity_grams": 100,
+    "calories": 133,
+    "protein": 3.5,
+    "carbs": 27,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fermented",
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_026",
+    "food": "upma",
+    "quantity_grams": 200,
+    "calories": 210,
+    "protein": 5.5,
+    "carbs": 36,
+    "fat": 5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_027",
+    "food": "poha",
+    "quantity_grams": 200,
+    "calories": 198,
+    "protein": 4.2,
+    "carbs": 40,
+    "fat": 3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_028",
+    "food": "ragi (finger millet) porridge",
+    "quantity_grams": 200,
+    "calories": 218,
+    "protein": 7.2,
+    "carbs": 42,
+    "fat": 1.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "complex_carbs",
+      "calcium_rich",
+      "millet"
+    ]
+  },
+  {
+    "id": "FOOD_029",
+    "food": "moong dal chilla",
+    "quantity_grams": 150,
+    "calories": 162,
+    "protein": 12,
+    "carbs": 24,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_030",
+    "food": "besan (chickpea flour) chilla",
+    "quantity_grams": 150,
+    "calories": 180,
+    "protein": 10,
+    "carbs": 26,
+    "fat": 3.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_031",
+    "food": "dhokla",
+    "quantity_grams": 150,
+    "calories": 198,
+    "protein": 8,
+    "carbs": 36,
+    "fat": 3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fermented",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_032",
+    "food": "methi paratha (no ghee)",
+    "quantity_grams": 100,
+    "calories": 240,
+    "protein": 7,
+    "carbs": 42,
+    "fat": 4.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "iron_rich",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_033",
+    "food": "uttapam",
+    "quantity_grams": 150,
+    "calories": 175,
+    "protein": 5.5,
+    "carbs": 32,
+    "fat": 3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fermented",
+      "complex_carbs",
+      "vegetables"
+    ]
+  },
+  {
+    "id": "FOOD_034",
+    "food": "bajra (pearl millet) roti",
+    "quantity_grams": 80,
+    "calories": 206,
+    "protein": 6.5,
+    "carbs": 40,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "millet",
+      "complex_carbs",
+      "high_fiber",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_035",
+    "food": "jowar (sorghum) roti",
+    "quantity_grams": 80,
+    "calories": 200,
+    "protein": 6.2,
+    "carbs": 41,
+    "fat": 1.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "millet",
+      "complex_carbs",
+      "high_fiber",
+      "gluten_free"
+    ]
+  },
+  {
+    "id": "FOOD_036",
+    "food": "dalia (broken wheat) khichdi",
+    "quantity_grams": 200,
+    "calories": 220,
+    "protein": 7.5,
+    "carbs": 42,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_037",
+    "food": "white rice (cooked)",
+    "quantity_grams": 150,
+    "calories": 195,
+    "protein": 4,
+    "carbs": 43,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "refined_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_038",
+    "food": "red rice (cooked)",
+    "quantity_grams": 150,
+    "calories": 180,
+    "protein": 4.5,
+    "carbs": 38,
+    "fat": 1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "high_fiber",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_039",
+    "food": "moong dal (cooked)",
+    "quantity_grams": 200,
+    "calories": 148,
+    "protein": 14,
+    "carbs": 25,
+    "fat": 1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "high_fiber",
+      "easy_digest"
+    ]
+  },
+  {
+    "id": "FOOD_040",
+    "food": "masoor dal (cooked)",
+    "quantity_grams": 200,
+    "calories": 165,
+    "protein": 18,
+    "carbs": 28,
+    "fat": 0.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "high_fiber",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_041",
+    "food": "toor dal (cooked)",
+    "quantity_grams": 200,
+    "calories": 196,
+    "protein": 13.5,
+    "carbs": 32,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_042",
+    "food": "urad dal (cooked)",
+    "quantity_grams": 200,
+    "calories": 210,
+    "protein": 15,
+    "carbs": 35,
+    "fat": 1.6,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "calcium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_043",
+    "food": "rajma (kidney beans, cooked)",
+    "quantity_grams": 200,
+    "calories": 225,
+    "protein": 15,
+    "carbs": 40,
+    "fat": 0.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "potassium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_044",
+    "food": "chole (chickpeas, cooked)",
+    "quantity_grams": 200,
+    "calories": 270,
+    "protein": 15,
+    "carbs": 44,
+    "fat": 3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian",
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_045",
+    "food": "sambar",
+    "quantity_grams": 200,
+    "calories": 128,
+    "protein": 6,
+    "carbs": 18,
+    "fat": 3.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "vegetables"
+    ]
+  },
+  {
+    "id": "FOOD_046",
+    "food": "palak (spinach sabzi)",
+    "quantity_grams": 150,
+    "calories": 82,
+    "protein": 5.5,
+    "carbs": 10,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "iron_rich",
+      "folate_rich",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_047",
+    "food": "bhindi (okra sabzi)",
+    "quantity_grams": 150,
+    "calories": 75,
+    "protein": 3,
+    "carbs": 14,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_048",
+    "food": "lauki (bottle gourd sabzi)",
+    "quantity_grams": 200,
+    "calories": 56,
+    "protein": 2,
+    "carbs": 12,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "low_calorie",
+      "high_water"
+    ]
+  },
+  {
+    "id": "FOOD_049",
+    "food": "karela (bitter gourd sabzi)",
+    "quantity_grams": 150,
+    "calories": 52,
+    "protein": 2.5,
+    "carbs": 9,
+    "fat": 0.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "blood_sugar_control",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_050",
+    "food": "methi (fenugreek) sabzi",
+    "quantity_grams": 150,
+    "calories": 72,
+    "protein": 4.5,
+    "carbs": 11,
+    "fat": 1.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "blood_sugar_control",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_051",
+    "food": "broccoli (steamed)",
+    "quantity_grams": 150,
+    "calories": 51,
+    "protein": 4.5,
+    "carbs": 9,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "anti_inflammatory",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_052",
+    "food": "cauliflower (sabzi)",
+    "quantity_grams": 200,
+    "calories": 66,
+    "protein": 4,
+    "carbs": 12,
+    "fat": 1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "high_fiber",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_053",
+    "food": "tomato",
+    "quantity_grams": 150,
+    "calories": 27,
+    "protein": 1.3,
+    "carbs": 5.8,
+    "fat": 0.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "lycopene_rich",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_054",
+    "food": "cucumber",
+    "quantity_grams": 150,
+    "calories": 16,
+    "protein": 0.7,
+    "carbs": 3.6,
+    "fat": 0.1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "low_calorie",
+      "high_water"
+    ]
+  },
+  {
+    "id": "FOOD_055",
+    "food": "carrot",
+    "quantity_grams": 100,
+    "calories": 41,
+    "protein": 0.9,
+    "carbs": 10,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "beta_carotene",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_056",
+    "food": "sweet potato (boiled)",
+    "quantity_grams": 150,
+    "calories": 129,
+    "protein": 2.4,
+    "carbs": 30,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "beta_carotene",
+      "potassium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_057",
+    "food": "beetroot",
+    "quantity_grams": 100,
+    "calories": 43,
+    "protein": 1.6,
+    "carbs": 9.6,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "antioxidant",
+      "nitrate_rich"
+    ]
+  },
+  {
+    "id": "FOOD_058",
+    "food": "guava",
+    "quantity_grams": 150,
+    "calories": 75,
+    "protein": 1.8,
+    "carbs": 17,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "fruit",
+      "vitamin_c_rich",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_059",
+    "food": "papaya",
+    "quantity_grams": 150,
+    "calories": 60,
+    "protein": 0.9,
+    "carbs": 15,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian",
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fruit",
+      "digestive_enzyme",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_060",
+    "food": "pomegranate",
+    "quantity_grams": 100,
+    "calories": 83,
+    "protein": 1.7,
+    "carbs": 19,
+    "fat": 1.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian",
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fruit",
+      "antioxidant",
+      "potassium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_061",
+    "food": "orange",
+    "quantity_grams": 150,
+    "calories": 71,
+    "protein": 1.3,
+    "carbs": 18,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "fruit",
+      "vitamin_c_rich"
+    ]
+  },
+  {
+    "id": "FOOD_062",
+    "food": "pear",
+    "quantity_grams": 150,
+    "calories": 86,
+    "protein": 0.5,
+    "carbs": 23,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "fruit",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_063",
+    "food": "amla (Indian gooseberry)",
+    "quantity_grams": 50,
+    "calories": 30,
+    "protein": 0.7,
+    "carbs": 7,
+    "fat": 0.1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fruit",
+      "vitamin_c_rich",
+      "anti_inflammatory",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_064",
+    "food": "watermelon",
+    "quantity_grams": 200,
+    "calories": 60,
+    "protein": 1.2,
+    "carbs": 15,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fruit",
+      "high_water",
+      "lycopene_rich"
+    ]
+  },
+  {
+    "id": "FOOD_065",
+    "food": "plain yogurt (low-fat)",
+    "quantity_grams": 200,
+    "calories": 114,
+    "protein": 10,
+    "carbs": 14,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "dairy",
+      "probiotic",
+      "calcium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_066",
+    "food": "buttermilk (chaas)",
+    "quantity_grams": 250,
+    "calories": 62,
+    "protein": 4,
+    "carbs": 8,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "dairy",
+      "probiotic",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_067",
+    "food": "skimmed milk",
+    "quantity_grams": 250,
+    "calories": 83,
+    "protein": 8.5,
+    "carbs": 12,
+    "fat": 0.2,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "dairy",
+      "calcium_rich",
+      "low_fat"
+    ]
+  },
+  {
+    "id": "FOOD_068",
+    "food": "cottage cheese (low-fat)",
+    "quantity_grams": 100,
+    "calories": 72,
+    "protein": 12,
+    "carbs": 3.5,
+    "fat": 1,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "dairy",
+      "low_fat",
+      "casein"
+    ]
+  },
+  {
+    "id": "FOOD_069",
+    "food": "whole egg",
+    "quantity_grams": 100,
+    "calories": 143,
+    "protein": 13,
+    "carbs": 0.7,
+    "fat": 9.5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "egg"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "complete_protein",
+      "healthy_fat"
+    ]
+  },
+  {
+    "id": "FOOD_070",
+    "food": "tuna (canned in water)",
+    "quantity_grams": 100,
+    "calories": 116,
+    "protein": 26,
+    "carbs": 0,
+    "fat": 1,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein",
+      "selenium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_071",
+    "food": "mackerel / bangda (cooked)",
+    "quantity_grams": 150,
+    "calories": 273,
+    "protein": 30,
+    "carbs": 0,
+    "fat": 16,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "omega_3",
+      "selenium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_072",
+    "food": "sardines (cooked)",
+    "quantity_grams": 100,
+    "calories": 208,
+    "protein": 25,
+    "carbs": 0,
+    "fat": 11,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "omega_3",
+      "calcium_rich",
+      "selenium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_073",
+    "food": "rohu / catla fish (cooked)",
+    "quantity_grams": 150,
+    "calories": 192,
+    "protein": 30,
+    "carbs": 0,
+    "fat": 7.5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "fish"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein",
+      "omega_3"
+    ]
+  },
+  {
+    "id": "FOOD_074",
+    "food": "prawns / shrimp (cooked)",
+    "quantity_grams": 150,
+    "calories": 180,
+    "protein": 35,
+    "carbs": 0,
+    "fat": 2.5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "shellfish"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein",
+      "iodine_rich"
+    ]
+  },
+  {
+    "id": "FOOD_075",
+    "food": "turkey breast (cooked)",
+    "quantity_grams": 150,
+    "calories": 189,
+    "protein": 43,
+    "carbs": 0,
+    "fat": 1.5,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "lean_protein"
+    ]
+  },
+  {
+    "id": "FOOD_076",
+    "food": "walnuts",
+    "quantity_grams": 30,
+    "calories": 196,
+    "protein": 4.6,
+    "carbs": 4,
+    "fat": 19.6,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "tree nuts"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "omega_3",
+      "brain_health"
+    ]
+  },
+  {
+    "id": "FOOD_077",
+    "food": "pumpkin seeds",
+    "quantity_grams": 30,
+    "calories": 163,
+    "protein": 8.5,
+    "carbs": 4.5,
+    "fat": 13,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "zinc_rich",
+      "magnesium_rich",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_078",
+    "food": "flaxseeds (ground)",
+    "quantity_grams": 15,
+    "calories": 80,
+    "protein": 2.7,
+    "carbs": 4.3,
+    "fat": 6.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "omega_3",
+      "high_fiber",
+      "lignans"
+    ]
+  },
+  {
+    "id": "FOOD_079",
+    "food": "chia seeds",
+    "quantity_grams": 20,
+    "calories": 97,
+    "protein": 3.3,
+    "carbs": 8.3,
+    "fat": 6.1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "omega_3",
+      "high_fiber",
+      "calcium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_080",
+    "food": "sunflower seeds",
+    "quantity_grams": 30,
+    "calories": 174,
+    "protein": 5.5,
+    "carbs": 5.7,
+    "fat": 15,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "selenium_rich",
+      "vitamin_e_rich"
+    ]
+  },
+  {
+    "id": "FOOD_081",
+    "food": "peanuts (roasted, unsalted)",
+    "quantity_grams": 30,
+    "calories": 176,
+    "protein": 7.5,
+    "carbs": 5.5,
+    "fat": 14,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "peanuts"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_082",
+    "food": "cashews",
+    "quantity_grams": 30,
+    "calories": 157,
+    "protein": 5.2,
+    "carbs": 8.6,
+    "fat": 12.4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "tree nuts"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "zinc_rich",
+      "magnesium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_083",
+    "food": "roasted chana (Bengal gram)",
+    "quantity_grams": 30,
+    "calories": 104,
+    "protein": 7,
+    "carbs": 16,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_084",
+    "food": "makhana (fox nuts / lotus seeds)",
+    "quantity_grams": 30,
+    "calories": 106,
+    "protein": 3.5,
+    "carbs": 21,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "low_fat",
+      "calcium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_085",
+    "food": "moong sprouts",
+    "quantity_grams": 100,
+    "calories": 105,
+    "protein": 8.5,
+    "carbs": 18,
+    "fat": 0.6,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "vitamin_c_rich",
+      "easy_digest"
+    ]
+  },
+  {
+    "id": "FOOD_086",
+    "food": "edamame (cooked)",
+    "quantity_grams": 100,
+    "calories": 122,
+    "protein": 11,
+    "carbs": 8.9,
+    "fat": 5.2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "complete_protein",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_087",
+    "food": "barley (cooked)",
+    "quantity_grams": 200,
+    "calories": 193,
+    "protein": 7,
+    "carbs": 44,
+    "fat": 0.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "gluten"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "high_fiber",
+      "beta_glucan"
+    ]
+  },
+  {
+    "id": "FOOD_088",
+    "food": "oats (overnight soaked)",
+    "quantity_grams": 80,
+    "calories": 296,
+    "protein": 10,
+    "carbs": 53,
+    "fat": 5.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "complex_carbs",
+      "beta_glucan"
+    ]
+  },
+  {
+    "id": "FOOD_089",
+    "food": "avocado",
+    "quantity_grams": 100,
+    "calories": 160,
+    "protein": 2,
+    "carbs": 8.5,
+    "fat": 14.7,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "potassium_rich",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_090",
+    "food": "coconut water",
+    "quantity_grams": 250,
+    "calories": 47,
+    "protein": 1.7,
+    "carbs": 8.9,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian",
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "electrolyte",
+      "potassium_rich",
+      "hydration",
+      "kidney_limit_potassium"
+    ]
+  },
+  {
+    "id": "FOOD_091",
+    "food": "green tea",
+    "quantity_grams": 240,
+    "calories": 2,
+    "protein": 0,
+    "carbs": 0.5,
+    "fat": 0,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "anti_inflammatory",
+      "antioxidant",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_092",
+    "food": "turmeric milk (haldi doodh)",
+    "quantity_grams": 200,
+    "calories": 96,
+    "protein": 6.5,
+    "carbs": 10,
+    "fat": 2.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "anti_inflammatory",
+      "calcium_rich",
+      "probiotic"
+    ]
+  },
+  {
+    "id": "FOOD_093",
+    "food": "jeera (cumin) water",
+    "quantity_grams": 250,
+    "calories": 5,
+    "protein": 0.1,
+    "carbs": 0.8,
+    "fat": 0,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "digestive",
+      "blood_sugar_control",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_094",
+    "food": "mustard oil",
+    "quantity_grams": 10,
+    "calories": 88,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 10,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "omega_3",
+      "cooking_oil"
+    ]
+  },
+  {
+    "id": "FOOD_095",
+    "food": "coconut oil",
+    "quantity_grams": 10,
+    "calories": 90,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 10,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [],
+    "tags": [
+      "cooking_oil",
+      "saturated_fat",
+      "mct"
+    ]
+  },
+  {
+    "id": "FOOD_096",
+    "food": "sesame seeds (til)",
+    "quantity_grams": 15,
+    "calories": 86,
+    "protein": 2.6,
+    "carbs": 3.5,
+    "fat": 7.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "sesame"
+    ],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "calcium_rich",
+      "zinc_rich"
+    ]
+  },
+  {
+    "id": "FOOD_097",
+    "food": "hemp seeds",
+    "quantity_grams": 30,
+    "calories": 166,
+    "protein": 9.5,
+    "carbs": 2.6,
+    "fat": 14.6,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complete_protein",
+      "omega_3",
+      "healthy_fat"
+    ]
+  },
+  {
+    "id": "FOOD_098",
+    "food": "lemon juice (fresh)",
+    "quantity_grams": 30,
+    "calories": 8,
+    "protein": 0.1,
+    "carbs": 2.6,
+    "fat": 0,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vitamin_c_rich",
+      "digestive",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_099",
+    "food": "ginger (fresh)",
+    "quantity_grams": 10,
+    "calories": 8,
+    "protein": 0.2,
+    "carbs": 1.8,
+    "fat": 0.1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "anti_inflammatory",
+      "digestive",
+      "antioxidant"
+    ]
+  },
+  {
+    "id": "FOOD_100",
+    "food": "garlic",
+    "quantity_grams": 10,
+    "calories": 15,
+    "protein": 0.6,
+    "carbs": 3.3,
+    "fat": 0.1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "anti_inflammatory",
+      "allicin",
+      "immune_support"
+    ]
+  },
+  {
+    "id": "FOOD_101",
+    "food": "moringa (drumstick) leaves",
+    "quantity_grams": 50,
+    "calories": 37,
+    "protein": 3.5,
+    "carbs": 4.5,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "iron_rich",
+      "calcium_rich",
+      "vitamin_c_rich",
+      "superfood"
+    ]
+  },
+  {
+    "id": "FOOD_102",
+    "food": "soya chunks (cooked)",
+    "quantity_grams": 100,
+    "calories": 153,
+    "protein": 22,
+    "carbs": 16,
+    "fat": 0.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "complete_protein"
+    ]
+  },
+  {
+    "id": "FOOD_103",
+    "food": "tempeh",
+    "quantity_grams": 100,
+    "calories": 193,
+    "protein": 19,
+    "carbs": 9.4,
+    "fat": 10.8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "fermented",
+      "probiotic"
+    ]
+  },
+  {
+    "id": "FOOD_104",
+    "food": "amaranth (rajgira, cooked)",
+    "quantity_grams": 200,
+    "calories": 251,
+    "protein": 9.4,
+    "carbs": 46,
+    "fat": 4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian",
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complete_protein",
+      "complex_carbs",
+      "calcium_rich",
+      "iron_rich",
+      "gluten_free"
+    ]
+  },
+  {
+    "id": "FOOD_105",
+    "food": "buckwheat (kuttu) flour roti",
+    "quantity_grams": 80,
+    "calories": 213,
+    "protein": 6,
+    "carbs": 45,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "complex_carbs",
+      "gluten_free",
+      "rutin_rich"
+    ]
+  },
+  {
+    "id": "FOOD_106",
+    "food": "rajgira (amaranth) ladoo",
+    "quantity_grams": 30,
+    "calories": 138,
+    "protein": 3,
+    "carbs": 18,
+    "fat": 5.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [],
+    "tags": [
+      "calcium_rich",
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_107",
+    "food": "psyllium husk (isabgol)",
+    "quantity_grams": 5,
+    "calories": 17,
+    "protein": 0.1,
+    "carbs": 4.5,
+    "fat": 0,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "soluble_fiber",
+      "blood_sugar_control",
+      "digestive"
+    ]
+  },
+  {
+    "id": "FOOD_108",
+    "food": "mixed fruit salad (low sugar)",
+    "quantity_grams": 200,
+    "calories": 102,
+    "protein": 1.5,
+    "carbs": 25,
+    "fat": 0.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "fruit",
+      "antioxidant",
+      "vitamin_c_rich",
+      "high_fiber"
+    ]
+  },
+  {
+    "id": "FOOD_109",
+    "food": "vegetable soup (homemade)",
+    "quantity_grams": 300,
+    "calories": 96,
+    "protein": 4,
+    "carbs": 16,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "high_fiber",
+      "vegetables",
+      "low_calorie",
+      "high_water"
+    ]
+  },
+  {
+    "id": "FOOD_110",
+    "food": "khichdi (rice + moong dal)",
+    "quantity_grams": 250,
+    "calories": 265,
+    "protein": 11,
+    "carbs": 48,
+    "fat": 3.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "easy_digest",
+      "complex_carbs",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_111",
+    "food": "curd rice",
+    "quantity_grams": 250,
+    "calories": 270,
+    "protein": 8,
+    "carbs": 48,
+    "fat": 4.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "probiotic",
+      "easy_digest",
+      "calcium_rich"
+    ]
+  },
+  {
+    "id": "FOOD_112",
+    "food": "pav bhaji (healthy version)",
+    "quantity_grams": 300,
+    "calories": 360,
+    "protein": 10,
+    "carbs": 58,
+    "fat": 9,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [],
+    "tags": [
+      "vegetables",
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_113",
+    "food": "peanut butter (natural, unsalted)",
+    "quantity_grams": 32,
+    "calories": 190,
+    "protein": 7.5,
+    "carbs": 6.5,
+    "fat": 16,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "peanuts"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "healthy_fat",
+      "plant_protein"
+    ]
+  },
+  {
+    "id": "FOOD_114",
+    "food": "dark chocolate (>70% cocoa)",
+    "quantity_grams": 20,
+    "calories": 122,
+    "protein": 1.8,
+    "carbs": 9,
+    "fat": 8.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk",
+      "tree nuts"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "antioxidant",
+      "magnesium_rich",
+      "flavonoid_rich"
+    ]
+  },
+  {
+    "id": "FOOD_115",
+    "food": "Brazil nuts",
+    "quantity_grams": 20,
+    "calories": 131,
+    "protein": 2.9,
+    "carbs": 2.3,
+    "fat": 13.3,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "tree nuts"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "selenium_rich",
+      "healthy_fat"
+    ],
+    "notes": "Limit to 1-2 nuts/day; excess selenium is toxic"
+  },
+  {
+    "id": "FOOD_116",
+    "food": "fortified breakfast cereal (low sugar)",
+    "quantity_grams": 40,
+    "calories": 148,
+    "protein": 4,
+    "carbs": 30,
+    "fat": 1.2,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_safe"
+    ],
+    "tags": [
+      "iron_rich",
+      "b_vitamins",
+      "complex_carbs"
+    ]
+  },
+  {
+    "id": "FOOD_117",
+    "food": "miso soup",
+    "quantity_grams": 250,
+    "calories": 42,
+    "protein": 3.5,
+    "carbs": 5,
+    "fat": 1,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe"
+    ],
+    "tags": [
+      "probiotic",
+      "fermented",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_118",
+    "food": "black beans (cooked)",
+    "quantity_grams": 200,
+    "calories": 227,
+    "protein": 15.2,
+    "carbs": 40.8,
+    "fat": 0.9,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "plant_protein",
+      "high_fiber",
+      "antioxidant",
+      "iron_rich"
+    ]
+  },
+  {
+    "id": "FOOD_119",
+    "food": "spinach (raw salad)",
+    "quantity_grams": 100,
+    "calories": 23,
+    "protein": 2.9,
+    "carbs": 3.6,
+    "fat": 0.4,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global",
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "iron_rich",
+      "folate_rich",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_120",
+    "food": "mushrooms (sauteed)",
+    "quantity_grams": 150,
+    "calories": 60,
+    "protein": 4.5,
+    "carbs": 9,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe",
+      "kidney_safe"
+    ],
+    "tags": [
+      "vegetables",
+      "immune_support",
+      "vitamin_d_source",
+      "low_calorie"
+    ]
+  },
+  {
+    "id": "FOOD_121",
+    "food": "tofu scramble",
+    "quantity_grams": 200,
+    "calories": 196,
+    "protein": 18,
+    "carbs": 6,
+    "fat": 11,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "soy"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "complete_protein"
+    ]
+  },
+  {
+    "id": "FOOD_122",
+    "food": "casein protein powder",
+    "quantity_grams": 35,
+    "calories": 130,
+    "protein": 26,
+    "carbs": 4,
+    "fat": 1.5,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "controlled_protein"
+    ],
+    "tags": [
+      "high_protein",
+      "slow_release",
+      "dairy"
+    ]
+  },
+  {
+    "id": "FOOD_123",
+    "food": "rice protein powder",
+    "quantity_grams": 30,
+    "calories": 112,
+    "protein": 22,
+    "carbs": 4,
+    "fat": 2,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "breakfast"
+    ],
+    "glycemic_index": "low",
+    "medical_tags": [
+      "diabetes_safe",
+      "hypertension_safe"
+    ],
+    "tags": [
+      "high_protein",
+      "plant_protein",
+      "gluten_free"
+    ]
+  }
+]

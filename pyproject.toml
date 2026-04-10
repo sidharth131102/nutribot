@@ -1,0 +1,30 @@
+[project]
+name = "nutribot"
+version = "0.1.0"
+description = "Production-ready AI nutrition assistant with deterministic calculations, RAG, CAG, and validation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "sqlalchemy[asyncio]>=2.0.32",
+    "asyncpg>=0.29.0",
+    "langchain>=0.2.14",
+    "langchain-community>=0.2.12",
+    "langchain-openai>=0.1.22",
+    "langchain-text-splitters>=0.2.2",
+    "langgraph>=0.2.14",
+    "faiss-cpu>=1.8.0",
+    "aiosqlite>=0.20.0",
+    "pypdf>=5.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
