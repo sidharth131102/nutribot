@@ -23,6 +23,7 @@ from backend.db.mongo import (
     get_user_by_google_id,
     get_user_by_id,
     get_accepted_plans,
+    get_user_sessions,
     update_user,
 )
 from backend.models.chat import ChatRequest, ChatResponse, HistoryResponse
@@ -51,6 +52,13 @@ def _verify_password(password: str, hashed: str) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("NutriBot API starting up…")
+    # Verify MongoDB connection on startup
+    try:
+        from backend.db.mongo import get_client
+        await get_client().admin.command("ping")
+        logger.info("MongoDB connection OK")
+    except Exception as exc:
+        logger.error("MongoDB connection FAILED: %s", exc)
     yield
     await close_client()
     logger.info("NutriBot API shut down.")
@@ -250,7 +258,14 @@ async def chat_message(
         plan_proposed=result.get("plan_proposed", False),
         proposed_plan=result.get("proposed_plan"),
         session_id=payload.session_id,
+        rag_sources=result.get("rag_sources", []),
     )
+
+
+@app.get("/api/chat/sessions")
+async def list_sessions(user_id: str = Depends(get_current_user_id)):
+    sessions = await get_user_sessions(user_id)
+    return {"sessions": sessions}
 
 
 @app.get("/api/chat/history", response_model=HistoryResponse)

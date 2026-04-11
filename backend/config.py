@@ -10,7 +10,8 @@ class Settings(BaseSettings):
 
     # LLM (Groq)
     groq_api_key: str = ""
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "llama-3.3-70b-versatile"       # used by meal plan agent
+    llm_model_fast: str = "llama-3.1-8b-instant"     # used by intent + calorie agents
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"

@@ -15,7 +15,9 @@ def get_client() -> AsyncIOMotorClient:
         settings = get_settings()
         _client = AsyncIOMotorClient(
             settings.mongodb_uri,
-            serverSelectionTimeoutMS=5000,  # fail fast if unreachable
+            serverSelectionTimeoutMS=8000,
+            connectTimeoutMS=8000,
+            socketTimeoutMS=10000,
         )
     return _client
 
@@ -95,7 +97,14 @@ async def append_messages(
 ) -> None:
     await get_db().chat_sessions.update_one(
         {"user_id": user_id, "session_id": session_id},
-        {"$push": {"messages": {"$each": messages}}},
+        {
+            "$push": {"messages": {"$each": messages}},
+            "$setOnInsert": {
+                "user_id": user_id,
+                "session_id": session_id,
+                "started_at": datetime.utcnow(),
+            },
+        },
         upsert=True,
     )
 
@@ -112,6 +121,38 @@ async def get_session_messages(
         return []
     messages = doc.get("messages", [])
     return messages[-limit:]
+
+
+async def get_user_sessions(user_id: str, limit: int = 30) -> list[dict[str, Any]]:
+    """Return all sessions for a user, newest first, with a message preview."""
+    cursor = get_db().chat_sessions.find(
+        {"user_id": user_id},
+        sort=[("started_at", -1)],
+        limit=limit,
+    )
+    docs = await cursor.to_list(length=limit)
+    result = []
+    for doc in docs:
+        messages = doc.get("messages", [])
+        # Use first user message as preview
+        preview = "New conversation"
+        for m in messages:
+            if m.get("role") == "user":
+                preview = m.get("content", "")[:60]
+                break
+        started = doc.get("started_at")
+        if hasattr(started, "isoformat"):
+            started_str = started.isoformat() + "Z"
+        else:
+            # Fallback: derive from ObjectId creation time
+            started_str = doc["_id"].generation_time.isoformat() + "Z"
+        result.append({
+            "session_id": doc["session_id"],
+            "started_at": started_str,
+            "preview": preview,
+            "message_count": len(messages),
+        })
+    return result
 
 
 async def get_chat_history(user_id: str, n: int = 20) -> list[dict[str, Any]]:

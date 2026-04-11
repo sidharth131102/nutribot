@@ -25,6 +25,7 @@ class NutriBotState(TypedDict, total=False):
 
     # ── Agent 4 — RAG Retrieval ───────────────────────────────────────────────
     rag_context: str
+    rag_sources: list[dict]  # [{source: str, condition: str}, ...]
 
     # ── Agent 5 — Food DB Context ─────────────────────────────────────────────
     food_context: list[dict[str, Any]]

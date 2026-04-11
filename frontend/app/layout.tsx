@@ -12,7 +12,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="bg-background text-text antialiased">{children}</body>
+      <body className="bg-background text-text antialiased" suppressHydrationWarning>{children}</body>
     </html>
   );
 }

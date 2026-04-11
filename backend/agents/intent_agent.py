@@ -38,7 +38,7 @@ Reply with ONLY the intent label — no explanation, no punctuation."""
 def _llm() -> ChatGroq:
     settings = get_settings()
     return ChatGroq(
-        model=settings.llm_model,
+        model=settings.llm_model_fast,
         api_key=settings.groq_api_key,
         temperature=0,
         max_tokens=20,

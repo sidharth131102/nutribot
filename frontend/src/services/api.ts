@@ -118,12 +118,18 @@ export type ChatMessage = {
   timestamp: string;
 };
 
+export type RagSource = {
+  source: string;
+  condition: string;
+};
+
 export type ChatResponse = {
   response: string;
   intent: string;
   plan_proposed: boolean;
   proposed_plan: Record<string, unknown> | null;
   session_id: string;
+  rag_sources: RagSource[];
 };
 
 export async function sendMessage(
@@ -139,6 +145,17 @@ export async function sendMessage(
 
 export async function getChatHistory(sessionId: string): Promise<{ session_id: string; messages: ChatMessage[] }> {
   return request(`/api/chat/history?session_id=${encodeURIComponent(sessionId)}`);
+}
+
+export type ChatSession = {
+  session_id: string;
+  started_at: string;
+  preview: string;
+  message_count: number;
+};
+
+export async function getChatSessions(): Promise<{ sessions: ChatSession[] }> {
+  return request("/api/chat/sessions");
 }
 
 // ── Plans ──────────────────────────────────────────────────────────────────────

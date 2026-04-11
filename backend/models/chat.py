@@ -30,6 +30,7 @@ class ChatResponse(BaseModel):
     plan_proposed: bool = False
     proposed_plan: Optional[dict[str, Any]] = None
     session_id: str
+    rag_sources: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HistoryResponse(BaseModel):

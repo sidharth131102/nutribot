@@ -20,7 +20,7 @@ logger = logging.getLogger("nutribot.agent.meal_plan")
 MEAL_PLAN_INTENTS = {"MEAL_PLAN_REQUEST", "PLAN_MODIFICATION", "ROUTINE_REQUEST"}
 
 
-def _build_system_prompt(state: NutriBotState) -> str:
+def _build_system_prompt(state: NutriBotState, intent: str = "GENERAL_CONVERSATION") -> str:
     bot_name = state.get("bot_name", "Nova")
     user_name = state.get("user_name", "there")
     profile_context = state.get("profile_context", "")
@@ -74,13 +74,19 @@ def _build_system_prompt(state: NutriBotState) -> str:
         f"11. When generating a new plan, ensure meaningful variety from previous accepted plans.\n"
         f"12. For routine requests: include wake time, meal timings, exercise, hydration, and sleep schedule.\n"
         f"13. Tone: warm, motivating, personal. Use the user's name naturally.\n\n"
-        f"MANDATORY JSON OUTPUT FOR MEAL PLANS:\n"
-        f"You MUST embed a machine-readable JSON block in EVERY meal plan response. This is required — do not skip it.\n"
-        f"Place it at the very end of your response using this exact format (no extra text after it):\n\n"
-        f"```meal_plan_json\n"
-        f'{{"days":[{{"day":"Day 1","meals":[{{"name":"Breakfast","items":[{{"food":"Oats","quantity":"80g","calories":300,"protein":10,"carbs":54,"fat":6}}],"total_calories":300}},{{"name":"Mid-Morning Snack","items":[],"total_calories":0}},{{"name":"Lunch","items":[],"total_calories":0}},{{"name":"Evening Snack","items":[],"total_calories":0}},{{"name":"Dinner","items":[],"total_calories":0}}],"daily_totals":{{"calories":2100,"protein":158,"carbs":211,"fat":70}}}}],"calorie_target":2100,"macro_targets":{{"protein_g":158,"carbs_g":211,"fat_g":70}},"daily_routine":"Wake at 7AM, breakfast at 8AM, lunch at 1PM, dinner at 7PM, sleep at 10PM."}}\n'
-        f"```\n\n"
-        f"Fill ALL 7 days and ALL 5 meals per day with real foods and accurate numbers. The JSON must be valid and complete."
+        + (
+            f"MANDATORY JSON OUTPUT:\n"
+            f"You MUST embed a machine-readable JSON block at the very end of your response. Do not skip it.\n\n"
+            f"```meal_plan_json\n"
+            f'{{"days":[{{"day":"Day 1","meals":[{{"name":"Breakfast","items":[{{"food":"Oats","quantity":"80g","calories":300,"protein":10,"carbs":54,"fat":6}}],"total_calories":300}},{{"name":"Mid-Morning Snack","items":[],"total_calories":0}},{{"name":"Lunch","items":[],"total_calories":0}},{{"name":"Evening Snack","items":[],"total_calories":0}},{{"name":"Dinner","items":[],"total_calories":0}}],"daily_totals":{{"calories":2100,"protein":158,"carbs":211,"fat":70}}}}],"calorie_target":2100,"macro_targets":{{"protein_g":158,"carbs_g":211,"fat_g":70}},"daily_routine":"Wake at 7AM, breakfast at 8AM, lunch at 1PM, dinner at 7PM, sleep at 10PM."}}\n'
+            f"```\n\n"
+            f"Fill ALL 7 days and ALL 5 meals per day with real foods and accurate numbers. The JSON must be valid and complete."
+            if intent in MEAL_PLAN_INTENTS
+            else
+            f"Answer the user's question clearly and thoroughly using the clinical guidelines provided above. "
+            f"Do not generate a meal plan unless explicitly asked. "
+            f"Cite relevant guidelines naturally in your response."
+        )
     )
 
 
@@ -122,7 +128,7 @@ def _llm() -> ChatGroq:
         model=settings.llm_model,
         api_key=settings.groq_api_key,
         temperature=0.7,
-        max_tokens=8192,
+        max_tokens=4096,
     )
 
 
@@ -131,7 +137,7 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     user_message = state.get("user_message", "")
     chat_history = state.get("chat_history", [])
 
-    system_prompt = _build_system_prompt(state)
+    system_prompt = _build_system_prompt(state, intent)
     history_messages = _format_history(chat_history)
     current_message = HumanMessage(content=user_message)
 
