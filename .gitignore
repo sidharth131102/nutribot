@@ -15,6 +15,7 @@ wheels/
 .env
 *.db
 rag/faiss_index/
+chroma_db/
 
 # Node / Next.js
 node_modules/
