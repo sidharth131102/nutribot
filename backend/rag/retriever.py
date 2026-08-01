@@ -1,9 +1,9 @@
-"""Semantic search over the ChromaDB knowledge base."""
+"""Semantic search over the Pinecone knowledge base (integrated embeddings)."""
 import logging
 from typing import Any
 
 from backend.config import get_settings
-from backend.db.vector_store import collection_is_populated, get_collection
+from backend.db.vector_store import NAMESPACE, collection_is_populated, get_index
 
 logger = logging.getLogger("nutribot.rag.retriever")
 
@@ -25,12 +25,6 @@ CONDITION_MAP: dict[str, str] = {
 }
 
 
-def _embed_query(text: str) -> list[float]:
-    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-    embed_fn = DefaultEmbeddingFunction()
-    return embed_fn([text])[0]
-
-
 def _primary_condition(conditions: list[str]) -> str | None:
     for cond in conditions:
         normalized = cond.strip().lower()
@@ -39,32 +33,38 @@ def _primary_condition(conditions: list[str]) -> str | None:
     return None
 
 
-def _query_collection(
-    query_embedding: list[float],
+def _search(
+    query_text: str,
     top_k: int,
     primary_condition: str | None,
-) -> tuple[list[str], list[dict]]:
-    """Run ChromaDB query, falling back to no filter if needed."""
-    collection = get_collection()
-    results: Any = None
+) -> list[dict]:
+    """Run a Pinecone search, falling back to no filter if needed."""
+    index = get_index()
+    hits: list[dict] = []
 
     if primary_condition:
         try:
-            results = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                where={"condition": primary_condition},
+            response = index.search(
+                namespace=NAMESPACE,
+                inputs={"text": query_text},
+                top_k=top_k,
+                filter={"condition": {"$eq": primary_condition}},
+                fields=["chunk_text", "source", "condition"],
             )
+            hits = response["result"]["hits"]
         except Exception:
-            results = None
+            hits = []
 
-    if not results or not results["documents"][0]:
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
+    if not hits:
+        response = index.search(
+            namespace=NAMESPACE,
+            inputs={"text": query_text},
+            top_k=top_k,
+            fields=["chunk_text", "source", "condition"],
         )
+        hits = response["result"]["hits"]
 
-    return results["documents"][0], results["metadatas"][0]
+    return hits
 
 
 def retrieve(
@@ -78,22 +78,21 @@ def retrieve(
     top_k = k or settings.rag_top_k
 
     if not collection_is_populated():
-        logger.warning("ChromaDB collection is empty — skipping RAG retrieval")
+        logger.warning("Pinecone index is empty — skipping RAG retrieval")
         return "No clinical guidelines available (vector store not yet populated)."
 
     condition_terms = " ".join(medical_conditions)
     composite_query = f"{query} {diet_type} {condition_terms}".strip()
 
     try:
-        query_embedding = _embed_query(composite_query)
-        docs, metas = _query_collection(query_embedding, top_k, _primary_condition(medical_conditions))
+        hits = _search(composite_query, top_k, _primary_condition(medical_conditions))
 
-        if not docs:
+        if not hits:
             return "No relevant clinical guidelines found."
 
         chunks = [
-            f"[Source: {m.get('source', 'unknown')} | Condition: {m.get('condition', 'general')}]\n{d}"
-            for d, m in zip(docs, metas)
+            f"[Source: {h['fields'].get('source', 'unknown')} | Condition: {h['fields'].get('condition', 'general')}]\n{h['fields'].get('chunk_text', '')}"
+            for h in hits
         ]
         return "\n\n---\n\n".join(chunks)
 
@@ -119,20 +118,20 @@ def retrieve_with_sources(
     composite_query = f"{query} {diet_type} {condition_terms}".strip()
 
     try:
-        query_embedding = _embed_query(composite_query)
-        docs, metas = _query_collection(query_embedding, top_k, _primary_condition(medical_conditions))
+        hits = _search(composite_query, top_k, _primary_condition(medical_conditions))
 
-        if not docs:
+        if not hits:
             return "No relevant clinical guidelines found.", []
 
         chunks: list[str] = []
         seen: set[str] = set()
         sources: list[dict] = []
 
-        for doc, meta in zip(docs, metas):
-            source = meta.get("source", "unknown")
-            condition = meta.get("condition", "general")
-            chunks.append(f"[Source: {source} | Condition: {condition}]\n{doc}")
+        for h in hits:
+            fields: dict[str, Any] = h["fields"]
+            source = fields.get("source", "unknown")
+            condition = fields.get("condition", "general")
+            chunks.append(f"[Source: {source} | Condition: {condition}]\n{fields.get('chunk_text', '')}")
             key = f"{source}|{condition}"
             if key not in seen:
                 seen.add(key)

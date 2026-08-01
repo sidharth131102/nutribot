@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     email_from: str = "noreply@nutribot.ai"
     email_from_name: str = "NutriBot"
 
-    # ChromaDB
-    chroma_persist_dir: str = "./chroma_db"
+    # Pinecone
+    pinecone_api_key: str = ""
+    pinecone_index_name: str = "nutribot-knowledge"
 
     # RAG
     pdf_source_dir: str = "data"  # PDFs live directly in data/

@@ -1,11 +1,11 @@
-"""PDF ingestion pipeline: parse → chunk → embed → store in ChromaDB."""
+"""PDF ingestion pipeline: parse → chunk → upsert into Pinecone (integrated embeddings)."""
 import logging
 import uuid
 from pathlib import Path
 from typing import Any
 
 from backend.config import get_settings
-from backend.db.vector_store import get_collection
+from backend.db.vector_store import NAMESPACE, get_index
 
 logger = logging.getLogger("nutribot.rag.ingest")
 
@@ -71,15 +71,13 @@ def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str
 
 
 def ingest_pdfs(source_dir: str | None = None) -> int:
-    """Parse all PDFs, chunk, embed via local sentence-transformers, store in ChromaDB.
+    """Parse all PDFs, chunk, and upsert into Pinecone.
 
-    Uses chromadb's built-in DefaultEmbeddingFunction (all-MiniLM-L6-v2).
-    No OpenAI API key required.
+    Uses the target index's integrated embedding model (configured on the
+    index itself) — no local embedding model or API key needed here.
 
     Returns the total number of chunks ingested.
     """
-    from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
     settings = get_settings()
     root = Path(source_dir or settings.pdf_source_dir)
     pdf_files = sorted(root.glob("*.pdf"))
@@ -88,8 +86,7 @@ def ingest_pdfs(source_dir: str | None = None) -> int:
         logger.warning("No PDF files found in %s", root)
         return 0
 
-    embed_fn = DefaultEmbeddingFunction()
-    collection = get_collection()
+    index = get_index()
     total_chunks = 0
 
     for pdf_path in pdf_files:
@@ -103,22 +100,21 @@ def ingest_pdfs(source_dir: str | None = None) -> int:
             logger.warning("No extractable text in %s", pdf_path.name)
             continue
 
-        # Embed in batches of 50
+        # Upsert in batches of 50 (records are embedded server-side by Pinecone)
         batch_size = 50
         for i in range(0, len(chunks), batch_size):
             batch = chunks[i : i + batch_size]
-            embeddings = embed_fn(batch)
-            ids = [str(uuid.uuid4()) for _ in batch]
-            metadatas: list[dict[str, Any]] = [
-                {**meta, "chunk_index": i + j, "pdf_name": pdf_path.name}
-                for j, _ in enumerate(batch)
+            records: list[dict[str, Any]] = [
+                {
+                    "_id": str(uuid.uuid4()),
+                    "chunk_text": chunk,
+                    **meta,
+                    "chunk_index": i + j,
+                    "pdf_name": pdf_path.name,
+                }
+                for j, chunk in enumerate(batch)
             ]
-            collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=batch,
-                metadatas=metadatas,
-            )
+            index.upsert_records(records=records, namespace=NAMESPACE)
             total_chunks += len(batch)
 
         logger.info("  → %d chunks from %s", len(chunks), pdf_path.name)

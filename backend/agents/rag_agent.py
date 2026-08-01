@@ -1,6 +1,6 @@
 """Agent 4 — RAG Retrieval Agent.
 
-Performs semantic search over the ChromaDB knowledge base and returns
+Performs semantic search over the Pinecone knowledge base and returns
 the top-k most relevant clinical guideline chunks plus source metadata.
 """
 import logging

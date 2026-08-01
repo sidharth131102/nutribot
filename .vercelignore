@@ -1,0 +1,10 @@
+frontend/
+.venv/
+tests/
+agent/
+rag/
+tools/
+chroma_db/
+data/*.pdf
+uv.lock
+README.md
