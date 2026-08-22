@@ -138,7 +138,7 @@ def retrieve_with_sources(
                 sources.append({"source": source, "condition": condition})
 
         context = "\n\n---\n\n".join(chunks)
-        return context[:3000], sources
+        return context[:800], sources
 
     except Exception as exc:
         logger.exception("RAG retrieval failed: %s", exc)

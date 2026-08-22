@@ -16,7 +16,7 @@ async def food_agent_node(state: NutriBotState) -> NutriBotState:
     profile = state.get("user_profile", {})
 
     try:
-        foods = get_filtered_foods(profile, limit=30)
+        foods = get_filtered_foods(profile, limit=10)
         food_context_str = format_food_context(foods)
         logger.info("Food filter: %d approved items for user %s", len(foods), state.get("user_id"))
     except Exception as exc:

@@ -7,6 +7,7 @@ import logging
 from typing import Any
 
 from backend.agents.state import NutriBotState
+from backend.config import get_settings
 from backend.db import mongo
 
 logger = logging.getLogger("nutribot.agent.profile")
@@ -57,7 +58,7 @@ async def profile_agent_node(state: NutriBotState) -> NutriBotState:
 
     previous_plans = await mongo.get_accepted_plans(user_id)
     chat_history = await mongo.get_session_messages(
-        user_id, session_id, limit=20
+        user_id, session_id, limit=get_settings().chat_memory_window
     )
 
     profile_context = _format_profile_context(profile, previous_plans)

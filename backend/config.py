@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     food_db_path: str = "data/food_db.json"
 
     # Chat memory window
-    chat_memory_window: int = 20
+    chat_memory_window: int = 6
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

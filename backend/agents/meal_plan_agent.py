@@ -130,7 +130,7 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     try:
         result = await get_provider().generate(
             messages=all_messages,
-            config=GenerationConfig(profile="full", temperature=0.7, max_tokens=6144),
+            config=GenerationConfig(profile="full", temperature=0.5, max_tokens=6000),
         )
         raw_text = result.text
     except Exception as exc:
