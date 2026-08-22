@@ -9,11 +9,9 @@ import logging
 import re
 from typing import Any
 
-from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from backend.agents.state import NutriBotState
-from backend.config import get_settings
+from backend.llm.base import GenerationConfig, Message
+from backend.llm.factory import get_provider
 
 logger = logging.getLogger("nutribot.agent.meal_plan")
 
@@ -108,28 +106,14 @@ def _clean_response(text: str) -> str:
     return re.sub(r"```meal_plan_json.*?```", "", text, flags=re.DOTALL).strip()
 
 
-def _format_history(messages: list[dict]) -> list:
-    """Convert stored messages to LangChain message objects."""
-    from langchain_core.messages import AIMessage
-    formatted = []
+def _format_history(messages: list[dict]) -> list[Message]:
+    """Convert stored messages to provider-agnostic Message objects."""
+    formatted: list[Message] = []
     for msg in messages:
         role = msg.get("role", "user")
         content = msg.get("content", "")
-        if role == "user":
-            formatted.append(HumanMessage(content=content))
-        else:
-            formatted.append(AIMessage(content=content))
+        formatted.append(Message(role="user" if role == "user" else "assistant", content=content))
     return formatted
-
-
-def _llm() -> ChatGroq:
-    settings = get_settings()
-    return ChatGroq(
-        model=settings.llm_model,
-        api_key=settings.groq_api_key,
-        temperature=0.7,
-        max_tokens=4096,
-    )
 
 
 async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
@@ -139,13 +123,16 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
 
     system_prompt = _build_system_prompt(state, intent)
     history_messages = _format_history(chat_history)
-    current_message = HumanMessage(content=user_message)
+    current_message = Message(role="user", content=user_message)
 
-    all_messages = [SystemMessage(content=system_prompt)] + history_messages + [current_message]
+    all_messages = [Message(role="system", content=system_prompt)] + history_messages + [current_message]
 
     try:
-        response = await _llm().ainvoke(all_messages)
-        raw_text = response.content if isinstance(response.content, str) else str(response.content)
+        result = await get_provider().generate(
+            messages=all_messages,
+            config=GenerationConfig(profile="full", temperature=0.7, max_tokens=6144),
+        )
+        raw_text = result.text
     except Exception as exc:
         logger.exception("Meal plan generation failed: %s", exc)
         raw_text = (

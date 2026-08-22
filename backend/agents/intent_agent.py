@@ -5,11 +5,9 @@ it to state so the LangGraph router can direct flow to the right node.
 """
 import logging
 
-from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, SystemMessage
-
 from backend.agents.state import NutriBotState
-from backend.config import get_settings
+from backend.llm.base import GenerationConfig, Message
+from backend.llm.factory import get_provider
 
 logger = logging.getLogger("nutribot.agent.intent")
 
@@ -35,25 +33,18 @@ Classify the user message into EXACTLY ONE of these intents:
 Reply with ONLY the intent label — no explanation, no punctuation."""
 
 
-def _llm() -> ChatGroq:
-    settings = get_settings()
-    return ChatGroq(
-        model=settings.llm_model_fast,
-        api_key=settings.groq_api_key,
-        temperature=0,
-        max_tokens=20,
-    )
-
-
 async def intent_agent_node(state: NutriBotState) -> NutriBotState:
     user_message = state.get("user_message", "")
 
     try:
-        response = await _llm().ainvoke([
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=user_message),
-        ])
-        intent = response.content.strip().upper()
+        result = await get_provider().generate(
+            messages=[
+                Message(role="system", content=SYSTEM_PROMPT),
+                Message(role="user", content=user_message),
+            ],
+            config=GenerationConfig(profile="fast", temperature=0, max_tokens=100),
+        )
+        intent = result.text.strip().upper()
 
         if intent not in VALID_INTENTS:
             logger.warning("LLM returned invalid intent %r — defaulting to GENERAL_CONVERSATION", intent)

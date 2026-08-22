@@ -8,10 +8,11 @@ class Settings(BaseSettings):
     app_name: str = "NutriBot"
     frontend_url: str = "http://localhost:3000"
 
-    # LLM (Groq)
+    # LLM
+    llm_provider: str = "groq"
     groq_api_key: str = ""
-    llm_model: str = "llama-3.3-70b-versatile"       # used by meal plan agent
-    llm_model_fast: str = "llama-3.1-8b-instant"     # used by intent + calorie agents
+    llm_model: str = "openai/gpt-oss-120b"       # used by meal plan agent
+    llm_model_fast: str = "openai/gpt-oss-20b"   # used by intent agent
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
