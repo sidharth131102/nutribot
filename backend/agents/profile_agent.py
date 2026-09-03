@@ -8,7 +8,7 @@ from typing import Any
 
 from backend.agents.state import NutriBotState
 from backend.config import get_settings
-from backend.db import mongo
+from backend.db.mongo import UserScopedRepo, get_db
 
 logger = logging.getLogger("nutribot.agent.profile")
 
@@ -50,15 +50,18 @@ def _format_profile_context(profile: dict[str, Any], previous_plans: list[dict])
 async def profile_agent_node(state: NutriBotState) -> NutriBotState:
     user_id = state["user_id"]
     session_id = state["session_id"]
+    repo = UserScopedRepo(get_db(), user_id)
 
-    profile = await mongo.get_user_by_id(user_id)
+    profile = await repo.get_user()
     if not profile:
         logger.error("Profile not found for user_id=%s", user_id)
         profile = {}
+    elif profile.get("medical_conditions") or profile.get("allergies"):
+        await repo.log_access("medical_conditions_allergies", "read", state.get("trace_id", "-"))
 
-    previous_plans = await mongo.get_accepted_plans(user_id)
-    chat_history = await mongo.get_session_messages(
-        user_id, session_id, limit=get_settings().chat_memory_window
+    previous_plans = await repo.get_accepted_plans()
+    chat_history = await repo.get_session_messages(
+        session_id, limit=get_settings().chat_memory_window
     )
 
     profile_context = _format_profile_context(profile, previous_plans)

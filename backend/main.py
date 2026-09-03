@@ -15,18 +15,16 @@ from backend.auth.google_oauth import exchange_code_for_token, get_google_user_i
 from backend.auth.jwt_handler import create_access_token, get_current_user_id
 from backend.config import Settings, get_settings
 from backend.db.mongo import (
-    append_messages,
+    UserScopedRepo,
     close_client,
     create_user,
-    get_session_messages,
+    ensure_indexes,
+    get_db,
     get_user_by_email,
     get_user_by_google_id,
-    get_user_by_id,
-    get_accepted_plans,
-    get_user_sessions,
-    update_user,
 )
 from backend.models.chat import ChatRequest, ChatResponse, HistoryResponse
+from backend.models.consent import ConsentStatusResponse
 from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
 from backend.models.user import (
     LoginRequest,
@@ -37,6 +35,8 @@ from backend.models.user import (
     UserPublic,
 )
 from backend.observability import configure_logging, new_trace_id, trace_id_var
+
+MEDICAL_CONSENT_TYPE = "medical_data_processing"
 
 configure_logging()
 logger = logging.getLogger("nutribot")
@@ -82,8 +82,10 @@ async def lifespan(app: FastAPI):
         from backend.db.mongo import get_client
         await get_client().admin.command("ping")
         logger.info("MongoDB connection OK")
+        await ensure_indexes()
+        logger.info("MongoDB indexes ensured")
     except Exception as exc:
-        logger.error("MongoDB connection FAILED: %s", exc)
+        logger.error("MongoDB connection/index setup FAILED: %s", exc)
     yield
     await close_client()
     logger.info("NutriBot API shut down.")
@@ -193,7 +195,7 @@ async def google_callback(code: str = Query(...), state: str = Query(default="")
         user_doc["id"] = user_id
         user = user_doc
     elif not user.get("google_id"):
-        await update_user(user["id"], {"google_id": google_id})
+        await UserScopedRepo(get_db(), user["id"]).update_user({"google_id": google_id})
 
     token = create_access_token(user["id"], user["email"])
     return TokenResponse(
@@ -204,16 +206,36 @@ async def google_callback(code: str = Query(...), state: str = Query(default="")
 
 # ── /api/profile ──────────────────────────────────────────────────────────────
 
+async def _require_medical_consent(repo: UserScopedRepo, medical_conditions: list | None) -> None:
+    """Gate: writing non-empty medical_conditions requires current consent
+    (roadmap: consent must be explicit, recorded, revocable, checked before
+    medical data is processed or stored)."""
+    if not medical_conditions:
+        return
+    status_doc = await repo.get_consent_status(MEDICAL_CONSENT_TYPE)
+    if not status_doc["granted"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Medical data processing consent required before storing medical conditions. "
+                   "Grant it via POST /api/consent/grant first.",
+        )
+
+
 @app.post("/api/profile/create", response_model=UserPublic)
 async def create_profile(
     payload: ProfileCreateRequest,
     user_id: str = Depends(get_current_user_id),
 ):
+    repo = UserScopedRepo(get_db(), user_id)
+    await _require_medical_consent(repo, payload.medical_conditions)
+
     updates = payload.model_dump()
     updates["profile_complete"] = True
-    await update_user(user_id, updates)
+    await repo.update_user(updates)
+    if payload.medical_conditions:
+        await repo.log_access("medical_conditions_allergies", "write", trace_id_var.get())
 
-    user = await get_user_by_id(user_id)
+    user = await repo.get_user()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserPublic(**{k: v for k, v in user.items() if k in UserPublic.model_fields})
@@ -221,7 +243,7 @@ async def create_profile(
 
 @app.get("/api/profile/me", response_model=UserPublic)
 async def get_my_profile(user_id: str = Depends(get_current_user_id)):
-    user = await get_user_by_id(user_id)
+    user = await UserScopedRepo(get_db(), user_id).get_user()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserPublic(**{k: v for k, v in user.items() if k in UserPublic.model_fields})
@@ -232,11 +254,16 @@ async def update_profile(
     payload: ProfileUpdateRequest,
     user_id: str = Depends(get_current_user_id),
 ):
+    repo = UserScopedRepo(get_db(), user_id)
+    await _require_medical_consent(repo, payload.medical_conditions)
+
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if updates:
-        await update_user(user_id, updates)
+        await repo.update_user(updates)
+    if payload.medical_conditions:
+        await repo.log_access("medical_conditions_allergies", "write", trace_id_var.get())
 
-    user = await get_user_by_id(user_id)
+    user = await repo.get_user()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return UserPublic(**{k: v for k, v in user.items() if k in UserPublic.model_fields})
@@ -250,12 +277,13 @@ async def chat_message(
     user_id: str = Depends(get_current_user_id),
 ):
     trace_id_var.set(new_trace_id())
+    repo = UserScopedRepo(get_db(), user_id)
 
     if payload.user_id != user_id:
         raise HTTPException(status_code=403, detail="User ID mismatch")
 
     # Verify profile is complete
-    user = await get_user_by_id(user_id)
+    user = await repo.get_user()
     if not user or not user.get("profile_complete"):
         raise HTTPException(
             status_code=400,
@@ -270,8 +298,7 @@ async def chat_message(
 
     # Persist messages to MongoDB
     now = datetime.utcnow().isoformat()
-    await append_messages(
-        user_id,
+    await repo.append_messages(
         payload.session_id,
         [
             {"role": "user", "content": payload.message, "timestamp": now},
@@ -291,7 +318,7 @@ async def chat_message(
 
 @app.get("/api/chat/sessions")
 async def list_sessions(user_id: str = Depends(get_current_user_id)):
-    sessions = await get_user_sessions(user_id)
+    sessions = await UserScopedRepo(get_db(), user_id).get_user_sessions()
     return {"sessions": sessions}
 
 
@@ -300,7 +327,7 @@ async def chat_history(
     session_id: str = Query(...),
     user_id: str = Depends(get_current_user_id),
 ):
-    messages_raw = await get_session_messages(user_id, session_id, limit=50)
+    messages_raw = await UserScopedRepo(get_db(), user_id).get_session_messages(session_id, limit=50)
     from backend.models.chat import ChatMessage
     messages = [
         ChatMessage(
@@ -332,7 +359,7 @@ async def accept_plan(
     )
 
     # Agent 8: send email
-    user = await get_user_by_id(user_id)
+    user = await UserScopedRepo(get_db(), user_id).get_user()
     email_sent = False
     if user:
         email_sent = await deliver_plan_email(
@@ -357,5 +384,43 @@ async def accept_plan(
 
 @app.get("/api/plans/saved")
 async def get_saved_plans(user_id: str = Depends(get_current_user_id)):
-    plans = await get_accepted_plans(user_id)
+    plans = await UserScopedRepo(get_db(), user_id).get_accepted_plans()
     return {"plans": plans}
+
+
+# ── /api/consent ──────────────────────────────────────────────────────────────
+
+@app.post("/api/consent/grant", response_model=ConsentStatusResponse)
+async def grant_consent(user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    await repo.record_consent(MEDICAL_CONSENT_TYPE, "granted")
+    status_doc = await repo.get_consent_status(MEDICAL_CONSENT_TYPE)
+    return ConsentStatusResponse(consent_type=MEDICAL_CONSENT_TYPE, **status_doc)
+
+
+@app.post("/api/consent/revoke", response_model=ConsentStatusResponse)
+async def revoke_consent(user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    await repo.record_consent(MEDICAL_CONSENT_TYPE, "revoked")
+    status_doc = await repo.get_consent_status(MEDICAL_CONSENT_TYPE)
+    return ConsentStatusResponse(consent_type=MEDICAL_CONSENT_TYPE, **status_doc)
+
+
+@app.get("/api/consent/status", response_model=ConsentStatusResponse)
+async def consent_status(user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    status_doc = await repo.get_consent_status(MEDICAL_CONSENT_TYPE)
+    return ConsentStatusResponse(consent_type=MEDICAL_CONSENT_TYPE, **status_doc)
+
+
+# ── /api/user (export / delete) ─────────────────────────────────────────────────
+
+@app.get("/api/user/export")
+async def export_user_data(user_id: str = Depends(get_current_user_id)):
+    return await UserScopedRepo(get_db(), user_id).export_all()
+
+
+@app.delete("/api/user/account")
+async def delete_user_account(user_id: str = Depends(get_current_user_id)):
+    await UserScopedRepo(get_db(), user_id).delete_all()
+    return {"status": "deleted"}

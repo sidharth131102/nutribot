@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from backend.db import mongo
+from backend.db.mongo import UserScopedRepo, get_db
 
 logger = logging.getLogger("nutribot.agent.memory")
 
@@ -32,6 +32,7 @@ async def save_accepted_plan(
         "plan_full": plan_data,
     }
 
-    await mongo.save_accepted_plan(user_id, plan_doc)
+    repo = UserScopedRepo(get_db(), user_id)
+    await repo.save_accepted_plan(plan_doc)
     logger.info("Plan %s saved for user %s", plan_doc["plan_id"], user_id)
     return plan_doc["plan_id"]

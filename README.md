@@ -218,8 +218,8 @@ The UI will be available at `http://localhost:3000`.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/profile/me` | Get current user profile |
-| `POST` | `/api/profile/create` | Create profile |
-| `PUT` | `/api/profile/update` | Update profile |
+| `POST` | `/api/profile/create` | Create profile — requires `medical_data_processing` consent first if `medical_conditions` is non-empty (see Consent below) |
+| `PUT` | `/api/profile/update` | Update profile — same consent gate as above |
 
 ### Chat
 
@@ -235,6 +235,23 @@ The UI will be available at `http://localhost:3000`.
 |--------|------|-------------|
 | `POST` | `/api/plans/accept` | Accept and persist a proposed meal plan; also triggers the SendGrid email |
 | `GET` | `/api/plans/saved` | List previously accepted plans |
+
+### Consent
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/consent/grant` | Grant `medical_data_processing` consent |
+| `POST` | `/api/consent/revoke` | Revoke it (append-only event log — history is preserved, not overwritten) |
+| `GET` | `/api/consent/status` | Current status, derived from the latest event |
+
+### Account (export / delete)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`) |
+| `DELETE` | `/api/user/account` | Hard-deletes the caller's documents across every collection. Irreversible. Note: the caller's JWT itself isn't revoked and keeps decoding successfully until it expires — every endpoint it could hit returns empty afterward since the data is actually gone, so there's nothing left to leak, but this isn't full token revocation. |
+
+No frontend UI exists yet for consent/export/delete — backend/API only for now.
 
 ---
 
