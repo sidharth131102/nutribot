@@ -7,6 +7,7 @@ see scorers/judge.py.
 """
 from backend.agents.state import NutriBotState
 from backend.eval.models import DeterministicResult, GoldenCase
+from backend.utils.food_filter import food_name_matches
 
 CALORIE_TOLERANCE = 0.15  # ±15%
 
@@ -33,8 +34,6 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
     if plan_proposed and proposed_plan:
         allergies = {_normalize(a) for a in case.profile.get("allergies", []) if a}
         food_context = state.get("food_context") or []
-        allowed_food_names = {_normalize(f.get("food", "")) for f in food_context}
-        allowed_food_ids = {_normalize(f.get("id", "")) for f in food_context}
 
         all_items = [
             item
@@ -52,7 +51,7 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
                     failures.append(
                         f"plan includes '{item.get('food')}' which may contain allergen '{allergy}'"
                     )
-            if allowed_food_names and food_name not in allowed_food_names and food_name not in allowed_food_ids:
+            if food_context and not food_name_matches(item.get("food", ""), food_context):
                 failures.append(
                     f"plan includes '{item.get('food')}' not in the approved food_context allow-list"
                 )

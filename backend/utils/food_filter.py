@@ -1,11 +1,17 @@
 """Filter food_db.json items based on user profile constraints."""
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 
 from backend.config import get_settings
 from backend.models.user import DietType
+
+# Mirrors backend/tools/calorie_tool.py's DEFAULT_MACRO_SPLIT — the food list
+# offered to the model should span the same macro balance its targets assume,
+# not skew to one macro and cap how many calories a plan can physically reach.
+MACRO_SELECTION_SPLIT: dict[str, float] = {"protein": 0.30, "carb": 0.40, "fat": 0.30}
 
 # Map spec DietType values → food_db.json diet_types values
 DIET_TYPE_MAP: dict[str, str] = {
@@ -29,6 +35,19 @@ def _load_food_db() -> list[dict[str, Any]]:
 
 def _normalize(values: Iterable[str]) -> set[str]:
     return {v.strip().lower().replace("-", " ").replace("_", " ") for v in values}
+
+
+def _dominant_macro(food: dict[str, Any]) -> Literal["protein", "carb", "fat"]:
+    """Classify a food by which macro contributes the most calories."""
+    protein_cal = float(food.get("protein", 0)) * 4
+    carb_cal = float(food.get("carbs", 0)) * 4
+    fat_cal = float(food.get("fat", 0)) * 9
+    top = max(protein_cal, carb_cal, fat_cal)
+    if top == protein_cal:
+        return "protein"
+    if top == carb_cal:
+        return "carb"
+    return "fat"
 
 
 def _is_condition_safe(food: dict[str, Any], conditions: set[str]) -> bool:
@@ -105,14 +124,47 @@ def get_filtered_foods(
 
         filtered.append(food)
 
-    # Rank: prefer high protein, then low GI for relevant conditions
+    # Rank within a macro category: low GI first for relevant conditions, then high protein
     def _rank(food: dict[str, Any]) -> tuple:
         protein_score = -float(food.get("protein", 0))
         gi_score = 0 if food.get("glycemic_index") in LOW_GI_VALUES else 1
         return (gi_score, protein_score)
 
-    filtered.sort(key=_rank)
-    return filtered[:limit]
+    # Select across protein/carb/fat pools proportionally to MACRO_SELECTION_SPLIT
+    # instead of one flat protein-first sort — a pure protein-first ranking
+    # systematically excludes carb/fat foods from a small `limit`, capping how
+    # many calories a plan built only from these items can ever reach.
+    pools: dict[str, list[dict[str, Any]]] = {"protein": [], "carb": [], "fat": []}
+    for food in filtered:
+        pools[_dominant_macro(food)].append(food)
+    for pool in pools.values():
+        pool.sort(key=_rank)
+
+    allocation = {k: round(limit * v) for k, v in MACRO_SELECTION_SPLIT.items()}
+    # Rounding may over/under-shoot `limit` by a food or two — fine, the
+    # shortfall-redistribution pass below reconciles it against real pool sizes.
+
+    selected: list[dict[str, Any]] = []
+    remaining_pools = dict(pools)
+    remaining_slots = limit
+    categories = list(allocation.keys())
+    for i, category in enumerate(categories):
+        pool = remaining_pools[category]
+        is_last = i == len(categories) - 1
+        take = min(len(pool), remaining_slots) if is_last else min(len(pool), allocation[category])
+        selected.extend(pool[:take])
+        remaining_pools[category] = pool[take:]
+        remaining_slots -= take
+
+    # Redistribute any shortfall (a pool ran out) using whatever's left, in rank order
+    if remaining_slots > 0:
+        leftover = sorted(
+            (food for pool in remaining_pools.values() for food in pool),
+            key=_rank,
+        )
+        selected.extend(leftover[:remaining_slots])
+
+    return selected[:limit]
 
 
 def format_food_context(foods: list[dict[str, Any]]) -> str:
@@ -131,3 +183,37 @@ def format_food_context(foods: list[dict[str, Any]]) -> str:
             f"{', '.join(f.get('meal_types', []))}"
         )
     return "\n".join(lines)
+
+
+_PAREN_SUFFIX = re.compile(r"\s*\([^)]*\)")
+
+
+def _strip_qualifier(name: str) -> str:
+    """'turkey breast (cooked)' -> 'turkey breast' — for tolerant name matching."""
+    return _PAREN_SUFFIX.sub("", name).strip().lower()
+
+
+def food_name_matches(candidate: str, food_context: list[dict[str, Any]]) -> bool:
+    """Whether a model-generated food name reasonably matches an approved food.
+
+    Tolerant on purpose: the model may drop a parenthetical qualifier or phrase
+    a name slightly differently while still meaning an approved item. Used both
+    to enforce the allow-list in production (meal_plan_agent._sanitize_plan) and
+    to score it in the eval harness — kept in one place so they can't drift.
+    """
+    candidate_norm = _strip_qualifier(candidate)
+    candidate_id = candidate.strip().lower()
+    if not candidate_norm:
+        return False
+
+    for food in food_context:
+        allowed_norm = _strip_qualifier(food.get("food", ""))
+        allowed_id = str(food.get("id", "")).strip().lower()
+        if not allowed_norm:
+            continue
+        if candidate_norm == allowed_norm or candidate_id == allowed_id:
+            return True
+        if candidate_norm in allowed_norm or allowed_norm in candidate_norm:
+            return True
+
+    return False

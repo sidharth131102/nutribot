@@ -12,6 +12,7 @@ from typing import Any
 from backend.agents.state import NutriBotState
 from backend.llm.base import GenerationConfig, Message
 from backend.llm.factory import get_provider
+from backend.utils.food_filter import food_name_matches
 
 logger = logging.getLogger("nutribot.agent.meal_plan")
 
@@ -61,10 +62,13 @@ def _build_system_prompt(state: NutriBotState, intent: str = "GENERAL_CONVERSATI
         f"CORE INSTRUCTIONS:\n"
         f"1. Empathise first — acknowledge how the user feels before giving advice.\n"
         f"2. Every response must reflect the user's profile, goals, and medical context.\n"
-        f"3. For meal plans: generate ONLY from the APPROVED FOOD OPTIONS list above — never invent foods.\n"
+        f"3. For meal plans: generate ONLY from the APPROVED FOOD OPTIONS list above — never invent foods. "
+        f"You MAY use more than the listed default quantity of an approved food to help reach the calorie "
+        f"target (e.g. 150g instead of 100g) — scale that item's calories/protein/carbs/fat proportionally "
+        f"when you do, and use the food's exact name as listed.\n"
         f"4. For meal plans: structure must include 7 days with Breakfast, Mid-Morning Snack, Lunch, Evening Snack, Dinner.\n"
         f"5. Each meal item must list: food name, quantity (g), calories, protein, carbs, fat.\n"
-        f"6. Daily totals must match calorie target ±50 kcal.\n"
+        f"6. Daily totals must be within 10% of the calorie target.\n"
         f"7. Allergy enforcement is absolute — never include allergen foods.\n"
         f"8. For diabetic/PCOS users: only low-GI foods, avoid high-GI items.\n"
         f"9. For users with serious medical conditions, always add: 'Please review this plan with your doctor or dietitian.'\n"
@@ -99,6 +103,43 @@ def _extract_plan_json(response_text: str) -> dict[str, Any] | None:
     except json.JSONDecodeError as exc:
         logger.warning("Failed to parse embedded meal plan JSON: %s", exc)
         return None
+
+
+def _sanitize_plan(plan: dict[str, Any], food_context: list[dict[str, Any]]) -> dict[str, Any]:
+    """Enforce the food allow-list deterministically: drop any item that doesn't
+    match an approved food, then recompute totals for affected meals/days.
+
+    This is the actual enforcement for "the model may only select from the
+    approved list" — the prompt instruction alone (see CORE INSTRUCTIONS #3)
+    is not a guarantee, this is. No extra LLM call, so no added rate-limit risk.
+    """
+    if not food_context:
+        return plan
+
+    for day in plan.get("days", []):
+        for meal in day.get("meals", []):
+            kept = [
+                item for item in meal.get("items", [])
+                if food_name_matches(item.get("food", ""), food_context)
+            ]
+            dropped = len(meal.get("items", [])) - len(kept)
+            if dropped:
+                logger.warning(
+                    "Dropped %d plan item(s) not in the approved food list: %s",
+                    dropped,
+                    [i.get("food") for i in meal.get("items", []) if i not in kept],
+                )
+            meal["items"] = kept
+            meal["total_calories"] = sum(float(i.get("calories", 0)) for i in kept)
+
+        day["daily_totals"] = {
+            "calories": sum(m["total_calories"] for m in day.get("meals", [])),
+            "protein": sum(float(i.get("protein", 0)) for m in day.get("meals", []) for i in m.get("items", [])),
+            "carbs": sum(float(i.get("carbs", 0)) for m in day.get("meals", []) for i in m.get("items", [])),
+            "fat": sum(float(i.get("fat", 0)) for m in day.get("meals", []) for i in m.get("items", [])),
+        }
+
+    return plan
 
 
 def _clean_response(text: str) -> str:
@@ -146,6 +187,8 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
 
     if intent in MEAL_PLAN_INTENTS:
         proposed_plan = _extract_plan_json(raw_text)
+        if proposed_plan is not None:
+            proposed_plan = _sanitize_plan(proposed_plan, state.get("food_context") or [])
         plan_proposed = proposed_plan is not None
 
     clean_response = _clean_response(raw_text)
