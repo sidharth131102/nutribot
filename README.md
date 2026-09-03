@@ -322,6 +322,7 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `ENVIRONMENT` | `development` | `development` \| `staging` \| `production` — production refuses to boot with insecure/missing secrets (see Deployment below) |
 | `GROQ_API_KEY` | — | Groq API key |
 | `LLM_PROVIDER` | `groq` | Selects the `LLMProvider` implementation (`backend/llm/factory.py`) |
 | `LLM_MODEL` | `openai/gpt-oss-120b` | Model used for meal plan generation ("full" profile) |
@@ -354,15 +355,31 @@ Both projects read from the same `.env` variable set described above, entered as
 
 > Note: a shared `.vercelignore` at the repo root applies to **both** projects regardless of their Root Directory — don't exclude one project's directory from it, and anchor patterns with a leading `/` if they're only meant to exclude a top-level path (unanchored patterns match at any depth, e.g. inside `backend/`).
 
+The backend refuses to start with `ENVIRONMENT=production` unless `JWT_SECRET`, `MONGODB_URI` (non-localhost), `GROQ_API_KEY`, and `PINECONE_API_KEY` are all set to real, non-default values (`backend/main.py::_validate_production_secrets`) — the Vercel backend project needs `ENVIRONMENT=production` set explicitly for this to apply.
+
+### Docker (local dev / Azure Container Apps prep)
+
+```bash
+docker compose up --build
+```
+
+Single-service container (backend only — MongoDB Atlas/Pinecone/Groq are already hosted). Builds from the root `Dockerfile`; not part of the Vercel deployment path, this is for local parity and forward-prep for the v2 roadmap's eventual Azure Container Apps target.
+
 ---
 
 ## Running Tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
-`tests/` is currently empty — no test coverage yet.
+`tests/test_calorie_tool.py` and `tests/test_food_filter.py` cover the two safety-critical modules per the v2 roadmap (deterministic calorie math, and allergen/diet/medical-condition exclusion). CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real Groq API calls against a rate-limited account and isn't suited to running on every commit.
+
+To run the evaluation harness manually instead (real API calls, not part of CI):
+
+```bash
+uv run python -m backend.eval.runner
+```
 
 ---
 

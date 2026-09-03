@@ -13,7 +13,7 @@ from backend.agents.graph import run_chat_pipeline
 from backend.agents.memory_agent import save_accepted_plan
 from backend.auth.google_oauth import exchange_code_for_token, get_google_user_info
 from backend.auth.jwt_handler import create_access_token, get_current_user_id
-from backend.config import get_settings
+from backend.config import Settings, get_settings
 from backend.db.mongo import (
     append_messages,
     close_client,
@@ -36,9 +36,34 @@ from backend.models.user import (
     TokenResponse,
     UserPublic,
 )
+from backend.observability import configure_logging, new_trace_id, trace_id_var
 
-logging.basicConfig(level=logging.INFO)
+configure_logging()
 logger = logging.getLogger("nutribot")
+
+
+def _validate_production_secrets(settings: Settings) -> None:
+    """Refuse to boot in production with missing/default-insecure config."""
+    if settings.environment != "production":
+        return
+
+    problems = []
+    if not settings.jwt_secret or settings.jwt_secret == "change-me-in-production":
+        problems.append("JWT_SECRET is unset or using the insecure default")
+    if "localhost" in settings.mongodb_uri or "127.0.0.1" in settings.mongodb_uri:
+        problems.append("MONGODB_URI points at localhost in production")
+    if not settings.groq_api_key:
+        problems.append("GROQ_API_KEY is unset")
+    if not settings.pinecone_api_key:
+        problems.append("PINECONE_API_KEY is unset")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start in production with insecure/missing config:\n- " + "\n- ".join(problems)
+        )
+
+
+_validate_production_secrets(get_settings())
 
 
 def _hash_password(password: str) -> str:
@@ -224,6 +249,8 @@ async def chat_message(
     payload: ChatRequest,
     user_id: str = Depends(get_current_user_id),
 ):
+    trace_id_var.set(new_trace_id())
+
     if payload.user_id != user_id:
         raise HTTPException(status_code=403, detail="User ID mismatch")
 

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -6,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # App
     app_name: str = "NutriBot"
+    environment: Literal["development", "staging", "production"] = "development"
     frontend_url: str = "http://localhost:3000"
 
     # LLM

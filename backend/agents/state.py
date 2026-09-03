@@ -4,6 +4,7 @@ from typing import Any, Optional, TypedDict
 
 class NutriBotState(TypedDict, total=False):
     # ── Input ──────────────────────────────────────────────────────────────────
+    trace_id: str
     user_id: str
     session_id: str
     user_message: str

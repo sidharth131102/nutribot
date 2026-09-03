@@ -22,6 +22,7 @@ from backend.agents.meal_plan_agent import meal_plan_agent_node
 from backend.agents.profile_agent import profile_agent_node
 from backend.agents.rag_agent import rag_agent_node
 from backend.agents.state import NutriBotState
+from backend.observability import new_trace_id, trace_id_var
 
 logger = logging.getLogger("nutribot.graph")
 
@@ -110,8 +111,16 @@ async def run_chat_pipeline(
     user_message: str,
 ) -> NutriBotState:
     """Execute the full LangGraph pipeline for a single chat message."""
+    # Caller (backend/main.py) sets trace_id_var per-request; fall back to a
+    # fresh one if this is invoked directly (e.g. a script) without that.
+    trace_id = trace_id_var.get()
+    if trace_id == "-":
+        trace_id = new_trace_id()
+        trace_id_var.set(trace_id)
+
     graph = get_compiled_graph()
     initial_state: NutriBotState = {
+        "trace_id": trace_id,
         "user_id": user_id,
         "session_id": session_id,
         "user_message": user_message,
