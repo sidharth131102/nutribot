@@ -1,7 +1,8 @@
 """LangGraph stateful multi-agent graph definition for NutriBot.
 
 Graph topology:
-  profile → intent → [route] → calorie? → rag? → food? → meal_plan → END
+  profile → memory_retrieval → intent → [route] → calorie? → rag? → food?
+    → meal_plan → [extract?] → END
 
 Routing rules:
   CALORIE_CALCULATION  → calorie → meal_plan
@@ -10,6 +11,11 @@ Routing rules:
   NUTRITION_QUESTION   → rag → meal_plan
   ROUTINE_REQUEST      → rag → food → meal_plan
   GENERAL_CONVERSATION → meal_plan
+
+memory_extraction after meal_plan is conditional (see
+backend.memory.extraction.should_attempt_extraction) -- it only runs on
+turns carrying a preference/goal signal, not every turn, to avoid adding a
+3rd Groq call per message on top of the already-fragile rate budget.
 """
 import logging
 
@@ -19,9 +25,12 @@ from backend.agents.calorie_agent import calorie_agent_node
 from backend.agents.food_agent import food_agent_node
 from backend.agents.intent_agent import intent_agent_node
 from backend.agents.meal_plan_agent import meal_plan_agent_node
+from backend.agents.memory_extraction_agent import memory_extraction_agent_node
+from backend.agents.memory_retrieval_agent import memory_retrieval_agent_node
 from backend.agents.profile_agent import profile_agent_node
 from backend.agents.rag_agent import rag_agent_node
 from backend.agents.state import NutriBotState
+from backend.memory.extraction import should_attempt_extraction
 from backend.observability import new_trace_id, trace_id_var
 
 logger = logging.getLogger("nutribot.graph")
@@ -58,22 +67,33 @@ def _route_after_rag(state: NutriBotState) -> str:
     return "meal_plan"
 
 
+def _route_after_meal_plan(state: NutriBotState) -> str:
+    intent = state.get("intent", "GENERAL_CONVERSATION")
+    user_message = state.get("user_message", "")
+    if should_attempt_extraction(intent, user_message):
+        return "extract"
+    return "end"
+
+
 def build_graph() -> StateGraph:
     graph = StateGraph(NutriBotState)
 
     # Register nodes
     graph.add_node("profile", profile_agent_node)
+    graph.add_node("memory_retrieval", memory_retrieval_agent_node)
     graph.add_node("intent", intent_agent_node)
     graph.add_node("calorie", calorie_agent_node)
     graph.add_node("rag", rag_agent_node)
     graph.add_node("food", food_agent_node)
     graph.add_node("meal_plan", meal_plan_agent_node)
+    graph.add_node("memory_extraction", memory_extraction_agent_node)
 
     # Fixed edges
     graph.set_entry_point("profile")
-    graph.add_edge("profile", "intent")
+    graph.add_edge("profile", "memory_retrieval")
+    graph.add_edge("memory_retrieval", "intent")
     graph.add_edge("food", "meal_plan")
-    graph.add_edge("meal_plan", END)
+    graph.add_edge("memory_extraction", END)
 
     # Conditional routing
     graph.add_conditional_edges(
@@ -90,6 +110,11 @@ def build_graph() -> StateGraph:
         "rag",
         _route_after_rag,
         {"food": "food", "meal_plan": "meal_plan"},
+    )
+    graph.add_conditional_edges(
+        "meal_plan",
+        _route_after_meal_plan,
+        {"extract": "memory_extraction", "end": END},
     )
 
     return graph

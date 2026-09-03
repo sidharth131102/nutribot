@@ -259,6 +259,11 @@ async def update_profile(
 
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if updates:
+        if "goal" in updates:
+            current = await repo.get_user()
+            old_goal = current.get("goal") if current else None
+            if old_goal and old_goal != updates["goal"]:
+                await repo.add_episodic_event("goal_change", {"old_goal": old_goal, "new_goal": updates["goal"]})
         await repo.update_user(updates)
     if payload.medical_conditions:
         await repo.log_access("medical_conditions_allergies", "write", trace_id_var.get())

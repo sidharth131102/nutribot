@@ -34,5 +34,6 @@ async def save_accepted_plan(
 
     repo = UserScopedRepo(get_db(), user_id)
     await repo.save_accepted_plan(plan_doc)
+    await repo.add_episodic_event("plan_accepted", {"plan_id": plan_doc["plan_id"], "plan_summary": plan_summary})
     logger.info("Plan %s saved for user %s", plan_doc["plan_id"], user_id)
     return plan_doc["plan_id"]

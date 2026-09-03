@@ -66,6 +66,8 @@ async def ensure_indexes() -> None:
     await db.consents.create_index("user_id")
     await db.access_audit.create_index("user_id")
     await db.access_audit.create_index("timestamp", expireAfterSeconds=AUDIT_RETENTION_DAYS * 86400)
+    await db.memories.create_index("user_id")
+    await db.episodic_events.create_index("user_id")
 
 
 # ── Pre-auth free functions (no user_id to scope by yet) ───────────────────────
@@ -251,12 +253,76 @@ class UserScopedRepo:
             "timestamp": datetime.utcnow(),
         })
 
+    # ── Long-term semantic memory ────────────────────────────────────────────
+
+    # Categories where a new fact represents a change of state rather than an
+    # additional, coexisting fact -- adding one here auto-supersedes the prior
+    # active fact in that category for this user. Everything else (a user can
+    # dislike multiple foods at once, for example) allows multiple active facts.
+    _AUTO_SUPERSEDE_CATEGORIES = {"goal_context"}
+
+    async def add_memory_fact(self, fact: str, category: str, source: str = "chat_extraction", confidence: float = 0.7) -> str:
+        """Insert a new active fact, auto-superseding the prior one in the same
+        category if this category represents current-state-not-a-list."""
+        now = datetime.utcnow()
+        if category in self._AUTO_SUPERSEDE_CATEGORIES:
+            existing = await self._db.memories.find_one({
+                "user_id": self.user_id, "category": category, "status": "active",
+            })
+            if existing:
+                await self._supersede(existing["_id"])
+
+        result = await self._db.memories.insert_one({
+            "user_id": self.user_id,
+            "fact": fact,
+            "category": category,
+            "source": source,
+            "confidence": confidence,
+            "created_at": now,
+            "last_confirmed": now,
+            "status": "active",
+            "superseded_by": None,
+        })
+        return str(result.inserted_id)
+
+    async def _supersede(self, old_id) -> None:
+        await self._db.memories.update_one(
+            {"_id": old_id},
+            {"$set": {"status": "superseded"}},
+        )
+
+    async def get_active_memories(self, limit: int = 3) -> list[dict[str, Any]]:
+        cursor = self._db.memories.find(
+            {"user_id": self.user_id, "status": "active"},
+            sort=[("created_at", -1)],
+            limit=limit,
+        )
+        return await cursor.to_list(length=limit)
+
+    # ── Episodic events ──────────────────────────────────────────────────────
+
+    async def add_episodic_event(self, event_type: str, details: dict[str, Any] | None = None) -> None:
+        await self._db.episodic_events.insert_one({
+            "user_id": self.user_id,
+            "event_type": event_type,
+            "details": details or {},
+            "timestamp": datetime.utcnow(),
+        })
+
+    async def get_recent_events(self, limit: int = 2) -> list[dict[str, Any]]:
+        cursor = self._db.episodic_events.find(
+            {"user_id": self.user_id},
+            sort=[("timestamp", -1)],
+            limit=limit,
+        )
+        return await cursor.to_list(length=limit)
+
     # ── Export / delete ──────────────────────────────────────────────────────
 
     async def export_all(self) -> dict[str, Any]:
         """Everything this app stores about this user, across every collection
-        that currently exists (roadmap's target medical_reports/memories/etc.
-        collections don't exist yet -- Phase 3/4 features, nothing to export)."""
+        that currently exists (roadmap's target medical_reports/conversations/etc.
+        collections don't exist yet -- Phase 4 features, nothing to export)."""
         user = await self.get_user()
         if user:
             user.pop("password_hash", None)
@@ -274,11 +340,23 @@ class UserScopedRepo:
         for c in consents:
             c["_id"] = str(c["_id"])
 
+        memories_cursor = self._db.memories.find({"user_id": self.user_id})
+        memories = await memories_cursor.to_list(length=None)
+        for m in memories:
+            m["_id"] = str(m["_id"])
+
+        events_cursor = self._db.episodic_events.find({"user_id": self.user_id})
+        events = await events_cursor.to_list(length=None)
+        for e in events:
+            e["_id"] = str(e["_id"])
+
         return {
             "user": user,
             "chat_sessions": sessions,
             "accepted_plans": plans_doc,
             "consents": consents,
+            "memories": memories,
+            "episodic_events": events,
         }
 
     async def delete_all(self) -> None:
@@ -290,3 +368,5 @@ class UserScopedRepo:
         await self._db.accepted_plans.delete_many({"user_id": self.user_id})
         await self._db.consents.delete_many({"user_id": self.user_id})
         await self._db.access_audit.delete_many({"user_id": self.user_id})
+        await self._db.memories.delete_many({"user_id": self.user_id})
+        await self._db.episodic_events.delete_many({"user_id": self.user_id})

@@ -36,3 +36,7 @@ class NutriBotState(TypedDict, total=False):
     response: str
     plan_proposed: bool
     proposed_plan: Optional[dict[str, Any]]
+
+    # ── Memory Retrieval / Extraction (Phase 3) ───────────────────────────────
+    relevant_memories: list[dict[str, Any]]  # top-N active long-term facts
+    recent_events: list[dict[str, Any]]      # top-N recent episodic events

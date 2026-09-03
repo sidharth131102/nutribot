@@ -1,12 +1,13 @@
 # NutriBot
 
-**NutriBot** is a production-grade AI nutrition assistant that combines a 6-agent LangGraph pipeline, deterministic calorie calculations, RAG-powered nutrition knowledge, and a personalized food database to generate safe, medically-aware meal plans via a conversational interface.
+**NutriBot** is a production-grade AI nutrition assistant that combines an 8-node LangGraph pipeline with a typed memory system, deterministic calorie calculations, RAG-powered nutrition knowledge, and a personalized food database to generate safe, medically-aware meal plans via a conversational interface.
 
 ---
 
 ## Features
 
-- **Multi-agent LangGraph pipeline** — 6 specialized agents (Profile, Intent, Calorie, RAG, Food, MealPlan) orchestrated in a stateful graph with conditional routing
+- **Multi-agent LangGraph pipeline** — 8 specialized nodes (Profile, Memory Retrieval, Intent, Calorie, RAG, Food, MealPlan, Memory Extraction) orchestrated in a stateful graph with conditional routing
+- **Typed memory system** — profile (latest-valid fields), short-term (rolling chat window), long-term semantic (extracted preferences/goals with supersession), and episodic (goal changes, accepted plans) layers, assembled by a Context Builder into one typed object per generation call
 - **Deterministic nutrition math** — BMR and TDEE are always computed via the Mifflin-St Jeor formula; the LLM never invents calorie numbers
 - **Condition-aware macro splits** — automatic carb-to-protein rebalancing for users with diabetes or PCOS
 - **RAG knowledge injection** — Pinecone vector store with integrated embeddings (`llama-text-embed-v2`, no local embedding model needed), seeded from medical PDF documents (diabetes, PCOS, thyroid, hypertension, etc.)
@@ -23,7 +24,8 @@
 ## Architecture
 
 ```
-profile → intent → [route] → calorie? → rag? → food? → meal_plan → END
+profile → memory_retrieval → intent → [route] → calorie? → rag? → food?
+  → meal_plan → [extract?] → END
 ```
 
 ### Agent pipeline
@@ -31,11 +33,13 @@ profile → intent → [route] → calorie? → rag? → food? → meal_plan →
 | # | Agent | Responsibility |
 |---|-------|---------------|
 | 1 | **Profile** | Loads user profile from MongoDB, builds the CAG context block, fetches chat history and previous accepted plans |
-| 2 | **Intent** | Classifies the message into one of six intents using a fast LLM |
-| 3 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
-| 4 | **RAG** | Retrieves relevant chunks from Pinecone with optional condition-metadata filtering |
-| 5 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
-| 6 | **MealPlan** | Synthesises all upstream context and generates a structured meal plan or conversational reply using a large Groq model |
+| 2 | **Memory Retrieval** | Fetches the user's top active long-term memory facts + recent episodic events (pure DB read, no LLM call) |
+| 3 | **Intent** | Classifies the message into one of six intents using a fast LLM |
+| 4 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
+| 5 | **RAG** | Retrieves relevant chunks from Pinecone with optional condition-metadata filtering |
+| 6 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
+| 7 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply using a large Groq model |
+| 8 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd Groq call per message on the shared rate budget. |
 
 ### Intent routing
 
@@ -248,7 +252,7 @@ The UI will be available at `http://localhost:3000`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`) |
+| `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`, `memories`, `episodic_events`) |
 | `DELETE` | `/api/user/account` | Hard-deletes the caller's documents across every collection. Irreversible. Note: the caller's JWT itself isn't revoked and keeps decoding successfully until it expires — every endpoint it could hit returns empty afterward since the data is actually gone, so there's nothing left to leak, but this isn't full token revocation. |
 
 No frontend UI exists yet for consent/export/delete — backend/API only for now.

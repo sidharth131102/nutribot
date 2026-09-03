@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from backend.agents.state import NutriBotState
+from backend.context.builder import GenerationContext, build_context
 from backend.llm.base import GenerationConfig, Message
 from backend.llm.factory import get_provider
 from backend.utils.food_filter import food_name_matches
@@ -19,14 +20,8 @@ logger = logging.getLogger("nutribot.agent.meal_plan")
 MEAL_PLAN_INTENTS = {"MEAL_PLAN_REQUEST", "PLAN_MODIFICATION", "ROUTINE_REQUEST"}
 
 
-def _build_system_prompt(state: NutriBotState, intent: str = "GENERAL_CONVERSATION") -> str:
-    bot_name = state.get("bot_name", "Nova")
-    user_name = state.get("user_name", "there")
-    profile_context = state.get("profile_context", "")
-    calorie_result = state.get("calorie_result", {})
-    rag_context = state.get("rag_context", "")
-    food_context_str = state.get("food_context_str", "")
-    previous_plans = state.get("previous_plans", [])
+def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONVERSATION") -> str:
+    calorie_result = context.calorie_result
 
     calorie_block = ""
     if calorie_result:
@@ -40,25 +35,30 @@ def _build_system_prompt(state: NutriBotState, intent: str = "GENERAL_CONVERSATI
             f"Fiber: {calorie_result.get('fiber_g', 30)}g"
         )
 
-    rag_block = f"\nCLINICAL GUIDELINES (from knowledge base):\n{rag_context}" if rag_context else ""
+    rag_block = f"\nCLINICAL GUIDELINES (from knowledge base):\n{context.rag_context}" if context.rag_context else ""
 
-    food_block = f"\n{food_context_str}" if food_context_str else ""
+    food_block = f"\n{context.food_context_str}" if context.food_context_str else ""
 
     prev_plans_block = ""
-    if previous_plans:
+    if context.previous_plans:
         prev_plans_block = "\nPREVIOUS ACCEPTED MEAL PLANS (ensure variety):\n" + "\n".join(
-            f"- {p.get('plan_summary', '')}" for p in previous_plans[-2:]
+            f"- {p.get('plan_summary', '')}" for p in context.previous_plans[-2:]
         )
 
+    memory_block = f"\n{context.memory_context}" if context.memory_context else ""
+    episodic_block = f"\n{context.episodic_context}" if context.episodic_context else ""
+
     return (
-        f"You are {bot_name}, a compassionate, knowledgeable, and empathetic nutrition assistant.\n"
-        f"Always address the user as {user_name}.\n"
-        f"Always refer to yourself as {bot_name}.\n\n"
-        f"{profile_context}\n"
+        f"You are {context.bot_name}, a compassionate, knowledgeable, and empathetic nutrition assistant.\n"
+        f"Always address the user as {context.user_name}.\n"
+        f"Always refer to yourself as {context.bot_name}.\n\n"
+        f"{context.profile_context}\n"
         f"{calorie_block}\n"
         f"{rag_block}\n"
         f"{food_block}\n"
-        f"{prev_plans_block}\n\n"
+        f"{prev_plans_block}\n"
+        f"{memory_block}\n"
+        f"{episodic_block}\n\n"
         f"CORE INSTRUCTIONS:\n"
         f"1. Empathise first — acknowledge how the user feels before giving advice.\n"
         f"2. Every response must reflect the user's profile, goals, and medical context.\n"
@@ -147,26 +147,15 @@ def _clean_response(text: str) -> str:
     return re.sub(r"```meal_plan_json.*?```", "", text, flags=re.DOTALL).strip()
 
 
-def _format_history(messages: list[dict]) -> list[Message]:
-    """Convert stored messages to provider-agnostic Message objects."""
-    formatted: list[Message] = []
-    for msg in messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
-        formatted.append(Message(role="user" if role == "user" else "assistant", content=content))
-    return formatted
-
-
 async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     intent = state.get("intent", "GENERAL_CONVERSATION")
     user_message = state.get("user_message", "")
-    chat_history = state.get("chat_history", [])
+    context = build_context(state)
 
-    system_prompt = _build_system_prompt(state, intent)
-    history_messages = _format_history(chat_history)
+    system_prompt = _build_system_prompt(context, intent)
     current_message = Message(role="user", content=user_message)
 
-    all_messages = [Message(role="system", content=system_prompt)] + history_messages + [current_message]
+    all_messages = [Message(role="system", content=system_prompt)] + context.chat_history + [current_message]
 
     try:
         result = await get_provider().generate(
