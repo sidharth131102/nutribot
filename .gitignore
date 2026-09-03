@@ -16,6 +16,7 @@ wheels/
 *.db
 rag/faiss_index/
 chroma_db/
+eval_results.json
 
 # Node / Next.js
 node_modules/
