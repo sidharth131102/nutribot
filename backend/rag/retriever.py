@@ -138,7 +138,9 @@ def retrieve_with_sources(
                 sources.append({"source": source, "condition": condition})
 
         context = "\n\n---\n\n".join(chunks)
-        return context[:800], sources
+        # 800 was tuned to stay under Groq's 8000 TPM ceiling; Azure OpenAI's
+        # real quota (100K+ TPM) has room for more grounding context.
+        return context[:2000], sources
 
     except Exception as exc:
         logger.exception("RAG retrieval failed: %s", exc)

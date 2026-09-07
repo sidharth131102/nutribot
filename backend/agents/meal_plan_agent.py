@@ -92,17 +92,56 @@ def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONV
     )
 
 
-def _extract_plan_json(response_text: str) -> dict[str, Any] | None:
-    """Extract the embedded meal_plan_json block from the LLM response."""
-    pattern = r"```meal_plan_json\s*(\{.*?\})\s*```"
-    match = re.search(pattern, response_text, re.DOTALL)
-    if not match:
+def _find_balanced_json(text: str, start_marker: str = "meal_plan_json") -> tuple[int, int] | None:
+    """Locate a JSON object's [start, end) span via balanced-brace scanning,
+    independent of markdown fence formatting. Fallback for models that don't
+    reliably emit the ```meal_plan_json fence even when instructed to (seen
+    with GPT-5-mini on Azure -- the JSON itself was valid, just unfenced)."""
+    marker_idx = text.find(start_marker)
+    start = text.find("{", marker_idx if marker_idx != -1 else 0)
+    if start == -1:
         return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return (start, i + 1)
+    return None
+
+
+def _extract_plan_json_and_clean(response_text: str) -> tuple[dict[str, Any] | None, str]:
+    """Extract the embedded meal_plan_json block, returning
+    (parsed_plan_or_None, response_text_with_the_json_block_stripped).
+
+    Tries the fenced ```meal_plan_json ... ``` format first (matches
+    Groq/most models), falls back to balanced-brace scanning for models that
+    include the JSON without the fence.
+    """
+    fence_pattern = r"```meal_plan_json\s*(\{.*?\})\s*```"
+    match = re.search(fence_pattern, response_text, re.DOTALL)
+    if match:
+        candidate, cut_start, cut_end = match.group(1), match.start(), match.end()
+    else:
+        span = _find_balanced_json(response_text)
+        if not span:
+            return None, response_text.strip()
+        candidate, cut_start, cut_end = response_text[span[0]:span[1]], span[0], span[1]
+
     try:
-        return json.loads(match.group(1))
+        plan = json.loads(candidate)
     except json.JSONDecodeError as exc:
         logger.warning("Failed to parse embedded meal plan JSON: %s", exc)
-        return None
+        return None, response_text.strip()
+
+    cleaned = (response_text[:cut_start] + response_text[cut_end:]).strip()
+    # Strip any leftover fence/label remnants -- e.g. a bare "meal_plan_json"
+    # marker with no braces after it, left behind when the JSON was found via
+    # balanced-brace scanning rather than a full fence match.
+    cleaned = re.sub(r"`{0,3}\s*meal_plan_json\s*`{0,3}", "", cleaned).strip()
+    return plan, cleaned
 
 
 def _sanitize_plan(plan: dict[str, Any], food_context: list[dict[str, Any]]) -> dict[str, Any]:
@@ -142,11 +181,6 @@ def _sanitize_plan(plan: dict[str, Any], food_context: list[dict[str, Any]]) -> 
     return plan
 
 
-def _clean_response(text: str) -> str:
-    """Remove the raw JSON block from the user-visible response."""
-    return re.sub(r"```meal_plan_json.*?```", "", text, flags=re.DOTALL).strip()
-
-
 async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     intent = state.get("intent", "GENERAL_CONVERSATION")
     user_message = state.get("user_message", "")
@@ -160,7 +194,11 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     try:
         result = await get_provider().generate(
             messages=all_messages,
-            config=GenerationConfig(profile="full", temperature=0.5, max_tokens=6000),
+            # max_tokens=6000 was carefully tuned for Groq's 8000 TPM ceiling;
+            # Azure OpenAI's real quota (100K+ TPM) has vastly more headroom.
+            # If LLM_PROVIDER=groq is ever active again, this needs lowering
+            # back toward 6000 or the old rate-limit truncation returns.
+            config=GenerationConfig(profile="full", temperature=0.5, max_tokens=16000),
         )
         raw_text = result.text
     except Exception as exc:
@@ -173,14 +211,13 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     # Extract structured plan if this is a meal plan response
     proposed_plan = None
     plan_proposed = False
+    clean_response = raw_text.strip()
 
     if intent in MEAL_PLAN_INTENTS:
-        proposed_plan = _extract_plan_json(raw_text)
+        proposed_plan, clean_response = _extract_plan_json_and_clean(raw_text)
         if proposed_plan is not None:
             proposed_plan = _sanitize_plan(proposed_plan, state.get("food_context") or [])
         plan_proposed = proposed_plan is not None
-
-    clean_response = _clean_response(raw_text)
 
     return {
         **state,

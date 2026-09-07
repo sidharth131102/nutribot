@@ -143,3 +143,52 @@ Per user decision: long-term semantic memory extraction uses a real LLM call, bu
 - **Eval harness**: deliberately **not** updated to populate `relevant_memories`/`recent_events` — doing so would mean calling `memory_retrieval_agent_node`, which touches MongoDB, breaking `backend/eval/pipeline_runner.py`'s explicit "no live DB" design from Phase 1b. The new state fields are optional and `build_context()` falls back to empty, so eval cases just get empty memory/episodic context blocks, which is itself a legitimate case (a new user with no history).
 
 All 76 tests pass (33 pre-existing + 43 new: extraction gate, supersession/isolation, Context Builder). Live-verified: real extraction call on a realistic message correctly produced `{"fact": "Dislikes oats for breakfast", "category": "dislike", "confidence": 0.95}`.
+
+## Primary LLM provider migrated from Groq to Azure OpenAI (2026-09-07)
+
+Resolves the single most-flagged open item from this session: Groq's 8000 TPM on-demand-tier ceiling was causing JSON truncation on ~50% of plan-generating requests even after aggressive mitigation. User logged into Azure (trial, $200 credit) specifically to fix this.
+
+- **New provider**: `backend/llm/azure_openai_provider.py` — `AzureOpenAIProvider(LLMProvider)`, via `langchain_openai.AzureChatOpenAI` (package re-added as a dependency; it had been removed earlier this session when unused). Registered in `backend/llm/factory.py` alongside Groq (`GroqProvider` kept intact as a fallback option, not deleted). New config in `backend/config.py`: `azure_openai_api_key`, `azure_openai_endpoint`, `azure_openai_api_version`, `azure_openai_deployment_full`, `azure_openai_deployment_fast`. `LLM_PROVIDER=azure_openai` in `.env` selects it.
+- **Model**: both fast and full profiles use the same deployment, **`gpt-5-mini-1`** (`gpt-5-nano` was tried first for the fast profile but hit a subscription-level quota wall on the fresh trial — this subscription had zero TPM quota entitlement for it, not just an insufficient amount; rather than fight quota requests, both profiles point at the one working `gpt-5-mini` deployment, which has ample headroom: 100K/500K TPM allocated, 400K remaining — compare to Groq's 8000 TPM total).
+- **Real deployment quota confirmed**: 100,000 TPM (12.5x Groq's entire ceiling), with room to raise to 500,000 if ever needed.
+
+**Four real, distinct bugs found and fixed while wiring this up — a genuinely bumpy integration, worth a full account for whoever touches this next:**
+
+1. **Wrong resource entirely.** Azure AI Foundry's "Deploy model" flow silently provisioned its own backing Azure OpenAI resource (`sidharthunnikrishnan200-resource`), separate from the resource created manually via the classic Azure Portal path (`nutribot-openai`). The deployment lived on the Foundry-created resource, not the one we'd been copying keys from — every request 404'd with `DeploymentNotFound` until this was noticed (visible as a resource-name mismatch in the Quota page's "Shared allocation" column). **If deploying via AI Foundry, get the key/endpoint from the Foundry project's "Overview" page (the "Azure OpenAI endpoint" field specifically), not from whatever resource you created by hand first** — they are not guaranteed to be the same resource.
+2. **Endpoint had an extra path segment.** The Foundry "Azure OpenAI endpoint" field's copy value included a trailing `/openai/v1` (Azure's newer unified API path). `langchain_openai.AzureChatOpenAI` builds its own deployment-specific path on top of the base URL, so the extra segment produced a malformed, duplicated path — reproducibly a generic `404 Resource not found` (a different, less specific error than the `DeploymentNotFound` from bug #1, which helped distinguish the two). Fix: strip everything after `.openai.azure.com`.
+3. **GPT-5-family models reject custom `temperature`.** Only the default (`1`) is accepted; passing anything else 400s with `Unsupported value: 'temperature' does not support 0.0`. `AzureOpenAIProvider` no longer passes `temperature` at all — no per-call temperature control for this provider (was previously used for `temperature=0` on the fast/intent-classification profile; that determinism lever is gone under Azure, accepted as a tradeoff).
+4. **Same reasoning-token-overhead issue as Groq's `gpt-oss` models, different provider.** Empty `text` on a successful call — GPT-5-mini is a reasoning model too, spending part of the token budget on hidden chain-of-thought before the visible answer, same failure class fixed for Groq in Phase 1a. Fixed with `reasoning_effort="minimal"` (this provider's equivalent of Groq's `reasoning_effort="low"`).
+
+**Fifth issue, not Azure-specific but only surfaced through it — a real robustness gap in the JSON extraction, not a config bug:** GPT-5-mini reliably included the JSON meal-plan block but did **not** reliably wrap it in the ```` ```meal_plan_json ... ``` ```` fence the prompt asks for, despite the JSON itself being valid and complete. The original `_extract_plan_json` regex hard-required the closing fence and silently returned `None` (`plan_proposed: False`) with zero error — Groq's models happened to always comply with the fence, which is why this was never caught before. Replaced with `_extract_plan_json_and_clean()` in `backend/agents/meal_plan_agent.py`: tries the fenced pattern first, falls back to a balanced-brace scanner (finds `meal_plan_json`, then the first `{`, then walks forward tracking brace depth to find the true matching `}` — a plain regex can't reliably match balanced/nested braces, and the meal plan JSON nests days → meals → items) when no fence is found. Also fixes a small leftover-marker cosmetic bug caught during this fix: a bare `meal_plan_json` label with no braces could linger in the user-visible response after JSON removal; now stripped too.
+
+Live-verified end-to-end: intent classification correct, full 7-day meal plan generated with `plan_proposed: True`, all 7 days landing within ~7% of the calorie target (3100 vs. goal 3339) — consistent, unlike Groq's wide variance, no truncation. All 76 tests still pass after the extraction rewrite.
+
+### Sixth issue: a hung request with no timeout, discovered running the full eval harness
+
+A single request during a 16-case harness run hung for **hours** with zero error and zero output — `AzureChatOpenAI` had no explicit `timeout`/`max_retries` set, so it inherited whatever the underlying SDK defaults to, which was not enough to catch this. The stuck process had accumulated real CPU time (not fully deadlocked) but wall-clock time vastly exceeded any reasonable request duration. Fixed by setting `timeout=120` and `max_retries=2` explicitly on `AzureChatOpenAI` in `azure_openai_provider.py` — the same request that hung, tested in isolation afterward, completed normally in 71.8s (slow but legitimate; the harness's own case that had hung is `so-01`, a dense structured_output request). **Take this as a firm rule for this provider going forward: never trust an LLM call in this codebase to have a sane default timeout — always set one explicitly.**
+
+### Token-budget re-tuning now that Azure's real headroom is confirmed (100K+ TPM vs. Groq's 8000)
+
+Reverted several trims that were only ever there to survive Groq's tiny budget, now that they're not needed:
+- `meal_plan_agent.py` `max_tokens`: 6000 → 16000
+- `food_agent.py` food list `limit`: 10 → 20
+- `retriever.py` RAG context cap: 800 → 2000 chars
+- `config.py` `chat_memory_window`: 6 → 10
+- `azure_openai_provider.py` `reasoning_effort`: now profile-aware — `"minimal"` for fast/intent (simple classification, no benefit from more), `"low"` for full/generation (numeric-constraint tasks like hitting a calorie target benefit from a bit of real reasoning)
+
+**If `LLM_PROVIDER=groq` is ever made active again, all of these need lowering back toward their original tuned values or the old rate-limit truncation returns** — these values are now sized for Azure's headroom, not Groq's ceiling. Each site has an inline comment noting this.
+
+### Final eval harness scorecard (3 runs, same 16 cases, `python -m backend.eval.runner`)
+
+| Run | Deterministic | Notes |
+|---|---|---|
+| Groq baseline (original Phase 1b run) | 9/16 | ~50% of plan-generating cases truncated (empty/incomplete JSON) |
+| Azure OpenAI, first attempt (Groq-era budget settings) | 7/16 | Truncation gone, but 2 completely empty responses + severe calorie undershoot (40-65% under target) |
+| Azure OpenAI, after budget re-tuning + timeout fix | **9/16** | No empty responses, no truncation, no hangs — ties Groq's raw pass count, but the failure mix changed meaningfully (see below) |
+
+**Ties Groq numerically, but the underlying story is better, not neutral.** `mpr-01`/`mpr-02` (the two cases that failed hardest on Groq via truncation) now pass cleanly. What's still failing in the final run:
+- **Calorie undershoot, moderate not severe**: `pm-01`, `pm-02`, `ade-01`, `so-01` land 60-84% of target — better than the first Azure attempt's 40-65%, but still outside the ±15% tolerance. Not fully solved; a genuine remaining quality-tuning problem, not an infrastructure one.
+- **`ade-02`: a malformed-JSON case** — `Failed to parse embedded meal plan JSON: Expecting property name enclosed in double quotes` — the model emitted syntactically invalid JSON this one time (not a fence/formatting issue like before, actual invalid JSON body). Not yet investigated further.
+- **`rd-01`/`rd-02`: no `rag_sources` returned**, in both this run and the previous Azure attempt (not present in the original Groq baseline) — reproducible across 2 runs now, worth treating as a real finding rather than a fluke. Not yet root-caused; Pinecone retrieval is provider-independent, so this is unlikely to be an Azure-specific issue, but hasn't been investigated.
+
+None of these three remaining issues were chased further in this session — flagging them here as the next things to pick up rather than declaring the migration fully "done, no gaps."

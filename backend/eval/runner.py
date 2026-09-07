@@ -21,14 +21,25 @@ from backend.eval.scorers.judge import score_judge
 
 logging.basicConfig(level=logging.WARNING)
 
-# Cases run sequentially against a real Groq account with an 8000 TPM shared
-# rate limit (see docs/CURRENT_STATE.md) — pace requests so the harness itself
-# doesn't trip the same limit it exists to help catch regressions against.
+# Cases run sequentially. Groq's on_demand tier has an 8000 TPM shared rate
+# limit (see docs/CURRENT_STATE.md) that this pacing protects against; Azure
+# OpenAI's quota is far higher, but the delay is harmless there too and keeps
+# the harness safe to run under either provider without per-provider logic.
 INTER_CASE_DELAY_SECONDS = 5
+
+
+def _active_model(settings) -> str:
+    """The "full" profile model, whichever provider is actually configured --
+    settings.llm_model is Groq-specific and was being reported unconditionally
+    even when running against Azure OpenAI, which is misleading in the report."""
+    if settings.llm_provider == "azure_openai":
+        return settings.azure_openai_deployment_full
+    return settings.llm_model
 
 
 async def _run_all() -> list[CaseResult]:
     settings = get_settings()
+    model = _active_model(settings)
     results: list[CaseResult] = []
 
     for i, case in enumerate(GOLDEN_CASES):
@@ -42,7 +53,7 @@ async def _run_all() -> list[CaseResult]:
                     case_id=case.id,
                     category=case.category,
                     provider=settings.llm_provider,
-                    model=settings.llm_model,
+                    model=model,
                     intent=state.get("intent", "?"),
                     deterministic=deterministic,
                     judge=judge,
@@ -55,7 +66,7 @@ async def _run_all() -> list[CaseResult]:
                     case_id=case.id,
                     category=case.category,
                     provider=settings.llm_provider,
-                    model=settings.llm_model,
+                    model=model,
                     intent="ERROR",
                     deterministic=DeterministicResult(passed=False, failures=[f"pipeline error: {exc}"]),
                 )

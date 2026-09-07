@@ -38,8 +38,8 @@ profile → memory_retrieval → intent → [route] → calorie? → rag? → fo
 | 4 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
 | 5 | **RAG** | Retrieves relevant chunks from Pinecone with optional condition-metadata filtering |
 | 6 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
-| 7 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply using a large Groq model |
-| 8 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd Groq call per message on the shared rate budget. |
+| 7 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply |
+| 8 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd LLM call per message. |
 
 ### Intent routing
 
@@ -85,8 +85,7 @@ nutribot/
 |-------|-----------|
 | API framework | FastAPI 0.115+ |
 | Agent orchestration | LangGraph 0.2+ / LangChain 0.3+ |
-| LLM (generation) | Groq — `openai/gpt-oss-120b`, behind a provider abstraction (`backend/llm/`) |
-| LLM (intent) | Groq — `openai/gpt-oss-20b` |
+| LLM | Azure OpenAI — `gpt-5-mini`, behind a provider abstraction (`backend/llm/`); Groq kept configured as a fallback option (`LLM_PROVIDER=groq`) |
 | Embeddings | Pinecone integrated inference — `llama-text-embed-v2` (hosted, no local model) |
 | Vector store | Pinecone (serverless index, integrated embedding) |
 | Database | MongoDB (async via Motor) |
@@ -105,7 +104,7 @@ nutribot/
 - Python 3.12+
 - Node.js 18+
 - A running MongoDB instance (local or Atlas)
-- Groq API key (free tier available at [console.groq.com](https://console.groq.com))
+- An LLM provider: Azure OpenAI (recommended — much higher rate limits than Groq's free tier; deploy a model in Azure AI Foundry and set `LLM_PROVIDER=azure_openai`) or a Groq API key (free tier at [console.groq.com](https://console.groq.com), `LLM_PROVIDER=groq`)
 
 ### 1. Clone & install backend
 
@@ -344,10 +343,15 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ENVIRONMENT` | `development` | `development` \| `staging` \| `production` — production refuses to boot with insecure/missing secrets (see Deployment below) |
-| `GROQ_API_KEY` | — | Groq API key |
-| `LLM_PROVIDER` | `groq` | Selects the `LLMProvider` implementation (`backend/llm/factory.py`) |
-| `LLM_MODEL` | `openai/gpt-oss-120b` | Model used for meal plan generation ("full" profile) |
-| `LLM_MODEL_FAST` | `openai/gpt-oss-20b` | Model used for intent classification ("fast" profile) |
+| `LLM_PROVIDER` | `groq` | Selects the `LLMProvider` implementation (`backend/llm/factory.py`) — `groq` \| `azure_openai` |
+| `GROQ_API_KEY` | — | Groq API key (used when `LLM_PROVIDER=groq`) |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Groq model for meal plan generation ("full" profile) |
+| `LLM_MODEL_FAST` | `openai/gpt-oss-20b` | Groq model for intent classification ("fast" profile) |
+| `AZURE_OPENAI_API_KEY` | — | Azure OpenAI API key (used when `LLM_PROVIDER=azure_openai`) |
+| `AZURE_OPENAI_ENDPOINT` | — | Azure OpenAI resource endpoint, e.g. `https://<resource>.openai.azure.com` — **no trailing path** (not `/openai/v1`; see docs/CURRENT_STATE.md for why this bit us) |
+| `AZURE_OPENAI_API_VERSION` | `2024-10-21` | Azure OpenAI REST API version |
+| `AZURE_OPENAI_DEPLOYMENT_FULL` | `gpt-5-mini` | Deployment name used for meal plan generation ("full" profile) |
+| `AZURE_OPENAI_DEPLOYMENT_FAST` | `gpt-5-mini` | Deployment name used for intent classification ("fast" profile) |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string |
 | `MONGODB_DB_NAME` | `nutribot` | Database name |
 | `JWT_SECRET` | `change-me-in-production` | JWT signing secret |
@@ -384,7 +388,7 @@ The backend refuses to start with `ENVIRONMENT=production` unless `JWT_SECRET`, 
 docker compose up --build
 ```
 
-Single-service container (backend only — MongoDB Atlas/Pinecone/Groq are already hosted). Builds from the root `Dockerfile`; not part of the Vercel deployment path, this is for local parity and forward-prep for the v2 roadmap's eventual Azure Container Apps target.
+Single-service container (backend only — MongoDB Atlas/Pinecone/the LLM provider are already hosted). Builds from the root `Dockerfile`; not part of the Vercel deployment path, this is for local parity and forward-prep for the v2 roadmap's eventual Azure Container Apps target.
 
 ---
 
@@ -394,7 +398,7 @@ Single-service container (backend only — MongoDB Atlas/Pinecone/Groq are alrea
 uv run pytest
 ```
 
-`tests/test_calorie_tool.py` and `tests/test_food_filter.py` cover the two safety-critical modules per the v2 roadmap (deterministic calorie math, and allergen/diet/medical-condition exclusion). CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real Groq API calls against a rate-limited account and isn't suited to running on every commit.
+`tests/test_calorie_tool.py` and `tests/test_food_filter.py` cover the two safety-critical modules per the v2 roadmap (deterministic calorie math, and allergen/diet/medical-condition exclusion). CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real LLM API calls and isn't suited to running on every commit.
 
 To run the evaluation harness manually instead (real API calls, not part of CI):
 

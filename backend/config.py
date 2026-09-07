@@ -11,10 +11,17 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     # LLM
-    llm_provider: str = "groq"
+    llm_provider: str = "groq"  # "groq" | "azure_openai" -- Groq kept configured as a fallback option
     groq_api_key: str = ""
     llm_model: str = "openai/gpt-oss-120b"       # used by meal plan agent
     llm_model_fast: str = "openai/gpt-oss-20b"   # used by intent agent
+
+    # LLM (Azure OpenAI)
+    azure_openai_api_key: str = ""
+    azure_openai_endpoint: str = ""
+    azure_openai_api_version: str = "2024-10-21"
+    azure_openai_deployment_full: str = "gpt-5-mini"
+    azure_openai_deployment_fast: str = "gpt-5-mini"  # same deployment as full by default -- see docs/CURRENT_STATE.md
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
@@ -47,8 +54,9 @@ class Settings(BaseSettings):
     # Food DB
     food_db_path: str = "data/food_db.json"
 
-    # Chat memory window
-    chat_memory_window: int = 6
+    # Chat memory window -- 6 was tuned to stay under Groq's 8000 TPM ceiling;
+    # Azure OpenAI's real quota (100K+ TPM) has room for more history.
+    chat_memory_window: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

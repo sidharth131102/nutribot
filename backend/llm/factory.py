@@ -1,12 +1,14 @@
-"""Config-driven provider selection — the switch point future providers (e.g. Azure AI Foundry) plug into."""
+"""Config-driven provider selection — the switch point providers plug into."""
 from functools import lru_cache
 
 from backend.config import get_settings
+from backend.llm.azure_openai_provider import AzureOpenAIProvider
 from backend.llm.base import LLMProvider
 from backend.llm.groq_provider import GroqProvider
 
 _PROVIDERS = {
     "groq": GroqProvider,
+    "azure_openai": AzureOpenAIProvider,
 }
 
 
