@@ -10,7 +10,7 @@
 - **Typed memory system** — profile (latest-valid fields), short-term (rolling chat window), long-term semantic (extracted preferences/goals with supersession), and episodic (goal changes, accepted plans) layers, assembled by a Context Builder into one typed object per generation call
 - **Deterministic nutrition math** — BMR and TDEE are always computed via the Mifflin-St Jeor formula; the LLM never invents calorie numbers
 - **Condition-aware macro splits** — automatic carb-to-protein rebalancing for users with diabetes or PCOS
-- **RAG knowledge injection** — Pinecone vector store with integrated embeddings (`llama-text-embed-v2`, no local embedding model needed), seeded from medical PDF documents (diabetes, PCOS, thyroid, hypertension, etc.)
+- **Hybrid RAG with reranking** — Pinecone dense search (integrated embeddings, `llama-text-embed-v2`) fused with an in-process BM25 keyword search via Reciprocal Rank Fusion, then reranked by the LLM down to the final top-k; seeded from medical PDF documents (diabetes, PCOS, thyroid, hypertension, etc.)
 - **Curated food database** — `data/food_db.json` is the single source of truth for macro values; foods carry allergen, medical, glycemic, region, and diet-type metadata
 - **Context-Augmented Generation (CAG)** — every LLM prompt is pre-loaded with the user's profile, calorie targets, RAG chunks, and an approved food list so the model cannot hallucinate out-of-scope items
 - **Intent classification** — lightweight fast model routes each message to the correct pipeline branch before any heavy generation occurs
@@ -36,7 +36,7 @@ profile → memory_retrieval → intent → [route] → calorie? → rag? → fo
 | 2 | **Memory Retrieval** | Fetches the user's top active long-term memory facts + recent episodic events (pure DB read, no LLM call) |
 | 3 | **Intent** | Classifies the message into one of six intents using a fast LLM |
 | 4 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
-| 5 | **RAG** | Retrieves relevant chunks from Pinecone with optional condition-metadata filtering |
+| 5 | **RAG** | Hybrid search (Pinecone dense + in-process BM25, fused via RRF) with optional condition-metadata filtering, LLM-reranked down to the final top-k |
 | 6 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
 | 7 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply |
 | 8 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd LLM call per message. |
@@ -178,7 +178,7 @@ Then run the ingestion script:
 python -m backend.rag.ingest
 ```
 
-This parses each PDF, chunks the text (500-token chunks, 50-token overlap), and upserts into Pinecone — embedding happens server-side via the index's integrated model, no separate embedding API key required. If no PDFs are ingested, RAG-dependent responses will say clinical guidelines are unavailable rather than falling back to any built-in corpus (none currently exists).
+This parses each PDF, chunks the text (500-token chunks, 50-token overlap), upserts into Pinecone (embedding happens server-side via the index's integrated model, no separate embedding API key required), and writes `data/rag_corpus.json` — a local copy of every chunk used for in-process BM25 keyword search (hybrid retrieval). **Always re-run this full script when adding a new PDF** — Pinecone and `rag_corpus.json` are built together and must stay in sync; don't add a PDF to `data/` without ingesting it. If no PDFs are ingested, RAG-dependent responses will say clinical guidelines are unavailable rather than falling back to any built-in corpus (none currently exists).
 
 ### 4. Start the backend
 
@@ -382,6 +382,8 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `PDF_SOURCE_DIR` | `data` | Directory scanned for nutrition PDFs |
 | `RAG_CHUNK_SIZE` | `500` | Token chunk size for PDF ingestion |
 | `RAG_CHUNK_OVERLAP` | `50` | Token overlap between chunks |
+| `RAG_CORPUS_PATH` | `data/rag_corpus.json` | Local BM25 keyword-search corpus, written by ingestion |
+| `RAG_FUSION_POOL_SIZE` | `20` | Candidates pulled from each of dense/sparse search before RRF fusion + reranking |
 | `FRONTEND_URL` | `http://localhost:3000` | Allowed CORS origin |
 
 ---
@@ -397,7 +399,7 @@ Both projects read from the same `.env` variable set described above, entered as
 
 > Note: a shared `.vercelignore` at the repo root applies to **both** projects regardless of their Root Directory — don't exclude one project's directory from it, and anchor patterns with a leading `/` if they're only meant to exclude a top-level path (unanchored patterns match at any depth, e.g. inside `backend/`).
 
-The backend refuses to start with `ENVIRONMENT=production` unless `JWT_SECRET`, `MONGODB_URI` (non-localhost), `GROQ_API_KEY`, and `PINECONE_API_KEY` are all set to real, non-default values (`backend/main.py::_validate_production_secrets`) — the Vercel backend project needs `ENVIRONMENT=production` set explicitly for this to apply.
+The backend refuses to start with `ENVIRONMENT=production` unless `JWT_SECRET`, `MONGODB_URI` (non-localhost), `GROQ_API_KEY`, `PINECONE_API_KEY`, `AZURE_STORAGE_CONNECTION_STRING`, and `AZURE_DOC_INTELLIGENCE_API_KEY` are all set to real, non-default values (`backend/main.py::_validate_production_secrets`) — the Vercel backend project needs `ENVIRONMENT=production` set explicitly for this to apply.
 
 ### Docker (local dev / Azure Container Apps prep)
 
