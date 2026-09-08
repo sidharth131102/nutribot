@@ -52,6 +52,10 @@ dependencies = [
 
     # Hybrid retrieval (Phase 5: RAG 2.0)
     "rank-bm25>=0.2.2",
+
+    # LangSmith tracing (Phase 6) -- promoted from transitive (pulled in by
+    # langchain*) to a direct dependency now that it's actually configured
+    "langsmith>=0.7.26",
 ]
 
 [tool.uv]
@@ -59,6 +63,10 @@ dev-dependencies = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "mongomock-motor>=0.0.36",
+
+    # Eval harness only (Phase 6) -- never imported by backend/agents or
+    # backend/guardrails, never installed in the Vercel production build
+    "deepeval>=2.0.0",
 ]
 
 [tool.vercel]

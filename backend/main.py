@@ -45,11 +45,13 @@ from backend.models.user import (
     TokenResponse,
     UserPublic,
 )
-from backend.observability import configure_logging, new_trace_id, trace_id_var
+from backend.observability import configure_logging, configure_tracing, new_trace_id, trace_id_var
+from backend.security.rate_limit import chat_message_rate_limit, login_rate_limit, register_rate_limit
 
 MEDICAL_CONSENT_TYPE = "medical_data_processing"
 
 configure_logging()
+configure_tracing(get_settings())
 logger = logging.getLogger("nutribot")
 
 
@@ -65,6 +67,11 @@ def _validate_production_secrets(settings: Settings) -> None:
         problems.append("MONGODB_URI points at localhost in production")
     if not settings.groq_api_key:
         problems.append("GROQ_API_KEY is unset")
+    if settings.llm_provider == "azure_openai":
+        if not settings.azure_openai_api_key:
+            problems.append("AZURE_OPENAI_API_KEY is unset")
+        if not settings.azure_openai_endpoint:
+            problems.append("AZURE_OPENAI_ENDPOINT is unset")
     if not settings.pinecone_api_key:
         problems.append("PINECONE_API_KEY is unset")
     if not settings.azure_storage_connection_string:
@@ -135,7 +142,7 @@ async def ping():
 # ── /api/auth ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest):
+async def register(payload: RegisterRequest, _: None = Depends(register_rate_limit)):
     existing = await get_user_by_email(payload.email)
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
@@ -164,7 +171,7 @@ async def register(payload: RegisterRequest):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
-async def login(payload: LoginRequest):
+async def login(payload: LoginRequest, _: None = Depends(login_rate_limit)):
     user = await get_user_by_email(payload.email)
     if not user or not user.get("password_hash"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -296,6 +303,7 @@ async def update_profile(
 async def chat_message(
     payload: ChatRequest,
     user_id: str = Depends(get_current_user_id),
+    _: None = Depends(chat_message_rate_limit),
 ):
     trace_id_var.set(new_trace_id())
     repo = UserScopedRepo(get_db(), user_id)

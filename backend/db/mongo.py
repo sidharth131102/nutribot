@@ -69,6 +69,11 @@ async def ensure_indexes() -> None:
     await db.memories.create_index("user_id")
     await db.episodic_events.create_index("user_id")
     await db.medical_documents.create_index("user_id")
+    # expireAfterSeconds=0 -- expires exactly at the stored expires_at
+    # timestamp (vs. access_audit's fixed-offset-from-insert-time TTL above),
+    # needed because rate_limit_counters shares one collection across scopes
+    # with different window lengths.
+    await db.rate_limit_counters.create_index("expires_at", expireAfterSeconds=0)
 
 
 # ── Pre-auth free functions (no user_id to scope by yet) ───────────────────────

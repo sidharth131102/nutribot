@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     # Azure OpenAI's real quota (100K+ TPM) has room for more history.
     chat_memory_window: int = 10
 
+    # LangSmith tracing (Phase 6) -- opt-in, off by default since it requires
+    # an external account/API key
+    langsmith_api_key: str = ""
+    langsmith_project: str = "nutribot"
+    langsmith_tracing_enabled: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
