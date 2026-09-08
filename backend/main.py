@@ -30,7 +30,12 @@ from backend.documents.extraction import process_document
 from backend.documents.validation import document_type_for, validate_upload
 from backend.models.chat import ChatRequest, ChatResponse, HistoryResponse
 from backend.models.consent import ConsentStatusResponse
-from backend.models.medical_document import DocumentUploadResponse, MedicalDocumentSummary
+from backend.models.medical_document import (
+    DocumentBatchDeleteRequest,
+    DocumentDeleteResponse,
+    DocumentUploadResponse,
+    MedicalDocumentSummary,
+)
 from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
 from backend.models.user import (
     LoginRequest,
@@ -507,6 +512,38 @@ async def delete_document(document_id: str, user_id: str = Depends(get_current_u
     await blob_client.delete(doc["blob_path"])
     await repo.log_access("medical_document", "delete", trace_id_var.get())
     return {"status": "deleted"}
+
+
+@app.post("/api/documents/delete-batch", response_model=DocumentDeleteResponse)
+async def delete_documents_batch(
+    payload: DocumentBatchDeleteRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Lets the user pick specific uploaded files (e.g. from a "clear medical
+    history" screen listing filenames) and delete just those -- the file and
+    its metadata are removed, but any facts already extracted into memories
+    stay, so the assistant doesn't lose context the user already shared."""
+    repo = UserScopedRepo(get_db(), user_id)
+    deleted_docs = await repo.delete_documents(payload.document_ids)
+    for doc in deleted_docs:
+        await blob_client.delete(doc["blob_path"])
+    if deleted_docs:
+        await repo.log_access("medical_document", "delete", trace_id_var.get())
+    deleted_ids = {str(d["_id"]) for d in deleted_docs}
+    not_found = [did for did in payload.document_ids if did not in deleted_ids]
+    return DocumentDeleteResponse(deleted_count=len(deleted_docs), not_found_ids=not_found)
+
+
+@app.delete("/api/documents", response_model=DocumentDeleteResponse)
+async def clear_all_documents(user_id: str = Depends(get_current_user_id)):
+    """"Clear all" -- every uploaded file and its metadata, for this user only.
+    Extracted memory facts are untouched, same as the single/batch deletes."""
+    repo = UserScopedRepo(get_db(), user_id)
+    deleted_docs = await repo.delete_documents(None)
+    await blob_client.delete_prefix(user_id)
+    if deleted_docs:
+        await repo.log_access("medical_document", "delete", trace_id_var.get())
+    return DocumentDeleteResponse(deleted_count=len(deleted_docs))
 
 
 # ── /api/user (export / delete) ─────────────────────────────────────────────────

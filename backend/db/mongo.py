@@ -388,6 +388,28 @@ class UserScopedRepo:
             return None
         return await self._db.medical_documents.find_one_and_delete({"_id": oid, "user_id": self.user_id})
 
+    async def delete_documents(self, document_ids: list[str] | None = None) -> list[dict[str, Any]]:
+        """Deletes and returns every matching document record, scoped to this
+        user. document_ids=None deletes every document this user has -- the
+        "clear all" case. Invalid ids are silently skipped rather than raising,
+        so a partially-stale client-side list (e.g. one already deleted) doesn't
+        fail the whole batch. Returns the deleted records (each with blob_path)
+        so the caller can clean up the matching blobs."""
+        from bson import ObjectId
+        query: dict[str, Any] = {"user_id": self.user_id}
+        if document_ids is not None:
+            oids = []
+            for did in document_ids:
+                try:
+                    oids.append(ObjectId(did))
+                except Exception:
+                    continue
+            query["_id"] = {"$in": oids}
+        docs = await self._db.medical_documents.find(query).to_list(length=None)
+        if docs:
+            await self._db.medical_documents.delete_many({"_id": {"$in": [d["_id"] for d in docs]}})
+        return docs
+
     # ── Export / delete ──────────────────────────────────────────────────────
 
     async def export_all(self) -> dict[str, Any]:

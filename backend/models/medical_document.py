@@ -44,3 +44,13 @@ class ExtractedMedicalFact(BaseModel):
     """LLM extraction output -- one entry per fact found in a document."""
     fact: str
     confidence: float = Field(ge=0.0, le=1.0, default=0.7)
+
+
+class DocumentBatchDeleteRequest(BaseModel):
+    """Body for deleting a user-selected set of documents (not all of them)."""
+    document_ids: list[str]
+
+
+class DocumentDeleteResponse(BaseModel):
+    deleted_count: int
+    not_found_ids: list[str] = Field(default_factory=list)

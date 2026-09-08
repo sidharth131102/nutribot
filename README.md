@@ -254,7 +254,11 @@ The UI will be available at `http://localhost:3000`.
 | `POST` | `/api/documents/upload` | Upload a medical report (PDF/JPG/PNG, max 10MB) — requires `medical_data_processing` consent. OCR'd via Azure Document Intelligence, facts extracted via LLM and stored as `medical_history` memories. Runs synchronously; the response's `status` is already `processed`/`failed` |
 | `GET` | `/api/documents` | List the caller's uploaded documents, newest first |
 | `GET` | `/api/documents/{id}` | Get one document's status/detail |
-| `DELETE` | `/api/documents/{id}` | Delete a document (Mongo record + blob) |
+| `DELETE` | `/api/documents/{id}` | Delete one document (Mongo record + blob) |
+| `POST` | `/api/documents/delete-batch` | Delete a user-selected set of documents (`{"document_ids": [...]}`) |
+| `DELETE` | `/api/documents` | "Clear all" — delete every uploaded document for the caller |
+
+All document deletes remove the file and its metadata only — any facts already extracted into `memories` (`medical_history`) are kept, so the assistant doesn't lose context the user already shared.
 
 ### Account (export / delete)
 

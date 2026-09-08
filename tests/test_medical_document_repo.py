@@ -152,6 +152,68 @@ async def test_delete_document_does_not_leak_across_users(two_users):
     assert await repo_b.get_document(document_id) is not None
 
 
+# ── Batch delete / clear all ─────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_delete_documents_removes_only_selected_ids(two_users):
+    repo_a, _ = two_users
+    keep = await _create(repo_a, "keep.pdf")
+    remove = await _create(repo_a, "remove.pdf")
+
+    deleted = await repo_a.delete_documents([remove])
+
+    assert len(deleted) == 1
+    assert str(deleted[0]["_id"]) == remove
+    remaining = await repo_a.list_documents()
+    assert [str(d["_id"]) for d in remaining] == [keep]
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_skips_invalid_and_missing_ids(two_users):
+    repo_a, _ = two_users
+    document_id = await _create(repo_a)
+
+    deleted = await repo_a.delete_documents([document_id, "not-a-valid-object-id", str(ObjectId())])
+
+    assert len(deleted) == 1
+    assert str(deleted[0]["_id"]) == document_id
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_none_clears_everything_for_this_user(two_users):
+    repo_a, _ = two_users
+    await _create(repo_a, "one.pdf")
+    await _create(repo_a, "two.pdf")
+
+    deleted = await repo_a.delete_documents(None)
+
+    assert len(deleted) == 2
+    assert await repo_a.list_documents() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_batch_does_not_leak_across_users(two_users):
+    repo_a, repo_b = two_users
+    b_doc = await _create(repo_b)
+
+    deleted = await repo_a.delete_documents([b_doc])
+
+    assert deleted == []
+    assert await repo_b.get_document(b_doc) is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_documents_none_does_not_touch_other_users(two_users):
+    repo_a, repo_b = two_users
+    await _create(repo_a)
+    await _create(repo_b)
+
+    await repo_a.delete_documents(None)
+
+    assert await repo_a.list_documents() == []
+    assert len(await repo_b.list_documents()) == 1
+
+
 # ── Export / delete ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
