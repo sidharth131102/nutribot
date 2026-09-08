@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-MemoryCategory = Literal["preference", "dislike", "goal_context", "lifestyle"]
+MemoryCategory = Literal["preference", "dislike", "goal_context", "lifestyle", "medical_history"]
 MemoryStatus = Literal["active", "superseded"]
 EventType = Literal["goal_change", "plan_accepted"]
 

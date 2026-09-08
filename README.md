@@ -247,14 +247,23 @@ The UI will be available at `http://localhost:3000`.
 | `POST` | `/api/consent/revoke` | Revoke it (append-only event log — history is preserved, not overwritten) |
 | `GET` | `/api/consent/status` | Current status, derived from the latest event |
 
+### Medical Documents
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/documents/upload` | Upload a medical report (PDF/JPG/PNG, max 10MB) — requires `medical_data_processing` consent. OCR'd via Azure Document Intelligence, facts extracted via LLM and stored as `medical_history` memories. Runs synchronously; the response's `status` is already `processed`/`failed` |
+| `GET` | `/api/documents` | List the caller's uploaded documents, newest first |
+| `GET` | `/api/documents/{id}` | Get one document's status/detail |
+| `DELETE` | `/api/documents/{id}` | Delete a document (Mongo record + blob) |
+
 ### Account (export / delete)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`, `memories`, `episodic_events`) |
-| `DELETE` | `/api/user/account` | Hard-deletes the caller's documents across every collection. Irreversible. Note: the caller's JWT itself isn't revoked and keeps decoding successfully until it expires — every endpoint it could hit returns empty afterward since the data is actually gone, so there's nothing left to leak, but this isn't full token revocation. |
+| `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`, `memories`, `episodic_events`, `medical_documents`) |
+| `DELETE` | `/api/user/account` | Hard-deletes the caller's documents across every collection (including uploaded medical document blobs). Irreversible. Note: the caller's JWT itself isn't revoked and keeps decoding successfully until it expires — every endpoint it could hit returns empty afterward since the data is actually gone, so there's nothing left to leak, but this isn't full token revocation. |
 
-No frontend UI exists yet for consent/export/delete — backend/API only for now.
+No frontend UI exists yet for consent/export/delete/documents — backend/API only for now.
 
 ---
 
@@ -352,6 +361,10 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `AZURE_OPENAI_API_VERSION` | `2024-10-21` | Azure OpenAI REST API version |
 | `AZURE_OPENAI_DEPLOYMENT_FULL` | `gpt-5-mini` | Deployment name used for meal plan generation ("full" profile) |
 | `AZURE_OPENAI_DEPLOYMENT_FAST` | `gpt-5-mini` | Deployment name used for intent classification ("fast" profile) |
+| `AZURE_STORAGE_CONNECTION_STRING` | — | Azure Blob Storage connection string (medical document uploads) |
+| `AZURE_STORAGE_CONTAINER` | `medical-documents` | Blob container name |
+| `AZURE_DOC_INTELLIGENCE_ENDPOINT` | — | Azure AI Document Intelligence resource endpoint |
+| `AZURE_DOC_INTELLIGENCE_API_KEY` | — | Azure AI Document Intelligence API key |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string |
 | `MONGODB_DB_NAME` | `nutribot` | Database name |
 | `JWT_SECRET` | `change-me-in-production` | JWT signing secret |

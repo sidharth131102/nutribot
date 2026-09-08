@@ -72,6 +72,21 @@ async def test_get_active_memories_respects_limit(two_users):
     assert len(active) == 3
 
 
+# ── No supersession: medical_history facts coexist ───────────────────────────
+
+@pytest.mark.asyncio
+async def test_medical_history_facts_coexist(two_users):
+    """Unlike goal_context, a 2019 diagnosis and a 2026 lab value are both
+    still-true facts, not states that replace each other."""
+    repo_a, _ = two_users
+    await repo_a.add_memory_fact("Diagnosed with type 2 diabetes in 2019", "medical_history")
+    await repo_a.add_memory_fact("HbA1c 7.2 on 2026-01-15", "medical_history")
+
+    active = await repo_a.get_active_memories(limit=10)
+    assert len(active) == 2
+    assert all(f["status"] == "active" for f in active)
+
+
 # ── Cross-user isolation ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

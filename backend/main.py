@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 import bcrypt as _bcrypt
+from bson import ObjectId
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.agents.email_agent import deliver_plan_email
@@ -23,8 +24,13 @@ from backend.db.mongo import (
     get_user_by_email,
     get_user_by_google_id,
 )
+from backend.documents import doc_intelligence
+from backend.documents.blob_storage import BlobStorageClient
+from backend.documents.extraction import process_document
+from backend.documents.validation import document_type_for, validate_upload
 from backend.models.chat import ChatRequest, ChatResponse, HistoryResponse
 from backend.models.consent import ConsentStatusResponse
+from backend.models.medical_document import DocumentUploadResponse, MedicalDocumentSummary
 from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
 from backend.models.user import (
     LoginRequest,
@@ -56,6 +62,10 @@ def _validate_production_secrets(settings: Settings) -> None:
         problems.append("GROQ_API_KEY is unset")
     if not settings.pinecone_api_key:
         problems.append("PINECONE_API_KEY is unset")
+    if not settings.azure_storage_connection_string:
+        problems.append("AZURE_STORAGE_CONNECTION_STRING is unset")
+    if not settings.azure_doc_intelligence_api_key:
+        problems.append("AZURE_DOC_INTELLIGENCE_API_KEY is unset")
 
     if problems:
         raise RuntimeError(
@@ -92,6 +102,7 @@ async def lifespan(app: FastAPI):
 
 
 settings = get_settings()
+blob_client = BlobStorageClient(settings)
 
 app = FastAPI(
     title="NutriBot API",
@@ -418,6 +429,86 @@ async def consent_status(user_id: str = Depends(get_current_user_id)):
     return ConsentStatusResponse(consent_type=MEDICAL_CONSENT_TYPE, **status_doc)
 
 
+# ── /api/documents ────────────────────────────────────────────────────────────
+
+@app.post("/api/documents/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_document(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    repo = UserScopedRepo(get_db(), user_id)
+
+    # Document upload is unconditionally medical data (unlike profile writes,
+    # which only gate when medical_conditions is non-empty) -- check directly
+    # rather than via _require_medical_consent, which short-circuits on falsy input.
+    status_doc = await repo.get_consent_status(MEDICAL_CONSENT_TYPE)
+    if not status_doc["granted"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Medical data processing consent required before uploading a document. "
+                   "Grant it via POST /api/consent/grant first.",
+        )
+
+    content = await file.read()
+    try:
+        validate_upload(file.filename or "", file.content_type or "", len(content))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    document_id = str(ObjectId())
+    blob_path = await blob_client.upload(user_id, document_id, file.filename, content, file.content_type)
+    await repo.create_document_record(
+        document_id=document_id,
+        filename=file.filename,
+        content_type=file.content_type,
+        document_type=document_type_for(file.content_type),
+        blob_path=blob_path,
+        size_bytes=len(content),
+    )
+    await repo.log_access("medical_document", "write", trace_id_var.get())
+
+    await repo.update_document_status(document_id, "processing")
+    try:
+        raw_text = await doc_intelligence.extract_text(settings, content, file.content_type)
+        facts_count = await process_document(repo, document_id, raw_text)
+        await repo.update_document_status(document_id, "processed", facts_extracted=facts_count)
+    except Exception as exc:
+        logger.exception("Document processing failed")
+        await repo.update_document_status(document_id, "failed", error_message=str(exc))
+
+    doc = await repo.get_document(document_id)
+    return DocumentUploadResponse(id=document_id, status=doc["status"], facts_extracted=doc["facts_extracted"])
+
+
+@app.get("/api/documents", response_model=list[MedicalDocumentSummary])
+async def list_documents(user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    await repo.log_access("medical_document", "read", trace_id_var.get())
+    docs = await repo.list_documents()
+    return [MedicalDocumentSummary(id=str(d["_id"]), **{k: v for k, v in d.items() if k in MedicalDocumentSummary.model_fields}) for d in docs]
+
+
+@app.get("/api/documents/{document_id}", response_model=MedicalDocumentSummary)
+async def get_document(document_id: str, user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    doc = await repo.get_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await repo.log_access("medical_document", "read", trace_id_var.get())
+    return MedicalDocumentSummary(id=str(doc["_id"]), **{k: v for k, v in doc.items() if k in MedicalDocumentSummary.model_fields})
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str, user_id: str = Depends(get_current_user_id)):
+    repo = UserScopedRepo(get_db(), user_id)
+    doc = await repo.delete_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    await blob_client.delete(doc["blob_path"])
+    await repo.log_access("medical_document", "delete", trace_id_var.get())
+    return {"status": "deleted"}
+
+
 # ── /api/user (export / delete) ─────────────────────────────────────────────────
 
 @app.get("/api/user/export")
@@ -427,5 +518,10 @@ async def export_user_data(user_id: str = Depends(get_current_user_id)):
 
 @app.delete("/api/user/account")
 async def delete_user_account(user_id: str = Depends(get_current_user_id)):
+    # Blobs before Mongo: delete_prefix() is keyed only on user_id (doesn't
+    # need to enumerate blob_paths from Mongo first), so it's retryable/
+    # idempotent even if this fails partway -- deleting Mongo first would risk
+    # orphaning blobs with no record left to retry cleanup against.
+    await blob_client.delete_prefix(user_id)
     await UserScopedRepo(get_db(), user_id).delete_all()
     return {"status": "deleted"}

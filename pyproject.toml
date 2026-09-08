@@ -45,6 +45,10 @@ dependencies = [
 
     # JSON repair (LLM-generated JSON occasionally has minor syntax errors)
     "json-repair>=0.63.4",
+
+    # Azure Blob Storage + Document Intelligence (Phase 4: medical documents)
+    "azure-storage-blob>=12.23.0",
+    "azure-ai-documentintelligence>=1.0.0",
 ]
 
 [tool.uv]

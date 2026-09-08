@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     azure_openai_deployment_full: str = "gpt-5-mini"
     azure_openai_deployment_fast: str = "gpt-5-mini"  # same deployment as full by default -- see docs/CURRENT_STATE.md
 
+    # Azure Blob Storage (Phase 4: medical document uploads)
+    azure_storage_connection_string: str = ""
+    azure_storage_container: str = "medical-documents"
+
+    # Azure Document Intelligence (Phase 4: medical document OCR)
+    azure_doc_intelligence_endpoint: str = ""
+    azure_doc_intelligence_api_key: str = ""
+
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "nutribot"
