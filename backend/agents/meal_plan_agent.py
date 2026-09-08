@@ -9,6 +9,8 @@ import logging
 import re
 from typing import Any
 
+import json_repair
+
 from backend.agents.state import NutriBotState
 from backend.context.builder import GenerationContext, build_context
 from backend.llm.base import GenerationConfig, Message
@@ -32,7 +34,9 @@ def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONV
             f"- Protein: {calorie_result.get('protein_g', 'N/A')}g | "
             f"Carbs: {calorie_result.get('carbs_g', 'N/A')}g | "
             f"Fat: {calorie_result.get('fat_g', 'N/A')}g | "
-            f"Fiber: {calorie_result.get('fiber_g', 30)}g"
+            f"Fiber: {calorie_result.get('fiber_g', 30)}g\n"
+            f"(Goal Target already has any fat-loss deficit or muscle-gain surplus applied — "
+            f"hit this number, don't apply a further reduction or increase on top of it.)"
         )
 
     rag_block = f"\nCLINICAL GUIDELINES (from knowledge base):\n{context.rag_context}" if context.rag_context else ""
@@ -75,14 +79,37 @@ def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONV
         f"10. End meal plan responses with: 'Would you like to accept this plan, or would you like me to adjust anything?'\n"
         f"11. When generating a new plan, ensure meaningful variety from previous accepted plans.\n"
         f"12. For routine requests: include wake time, meal timings, exercise, hydration, and sleep schedule.\n"
-        f"13. Tone: warm, motivating, personal. Use the user's name naturally.\n\n"
+        f"13. Tone: warm, motivating, personal. Use the user's name naturally.\n"
         + (
-            f"MANDATORY JSON OUTPUT:\n"
+            f"14. This is a plan modification request. For the vast majority of modification requests "
+            f"(swapping/disliking a specific food, an allergy or ingredient change, meal timing, adding "
+            f"variety, etc.) just make the change directly — do not ask a clarifying question. The ONE "
+            f"narrow exception: if the request is SPECIFICALLY about portion size or amount of food (e.g. "
+            f"'reduce portions', 'too much food', 'smaller meals') and does NOT mention swapping/removing "
+            f"a specific food or say 'lose weight'/'eat less overall', then it's genuinely ambiguous "
+            f"between smaller portions at the same calorie target vs. an actual calorie reduction — ask a "
+            f"short clarifying question instead (e.g. 'Do you want smaller portions spread across more "
+            f"meals while keeping your {calorie_result.get('goal_calories', 'current')} kcal target, or "
+            f"would you like to actually lower your daily calorie intake?'), and in that case only, do not "
+            f"propose a new plan or emit the JSON block — just ask.\n\n"
+            if intent == "PLAN_MODIFICATION"
+            else "\n"
+        )
+        + (
+            f"MANDATORY JSON OUTPUT (skip this entirely ONLY if you are instead asking a clarifying question "
+            f"per instruction 14 above — that is the one and only exception):\n"
+            f"Generate the full plan in THIS response. Do not ask clarifying questions about wake/sleep time, "
+            f"workout timing, food preferences, or variety before producing it — make reasonable assumptions "
+            f"from the profile above for anything unspecified (the user can ask for adjustments after seeing "
+            f"the plan, which is exactly what instruction 10 above is for).\n"
             f"You MUST embed a machine-readable JSON block at the very end of your response. Do not skip it.\n\n"
             f"```meal_plan_json\n"
             f'{{"days":[{{"day":"Day 1","meals":[{{"name":"Breakfast","items":[{{"food":"Oats","quantity":"80g","calories":300,"protein":10,"carbs":54,"fat":6}}],"total_calories":300}},{{"name":"Mid-Morning Snack","items":[],"total_calories":0}},{{"name":"Lunch","items":[],"total_calories":0}},{{"name":"Evening Snack","items":[],"total_calories":0}},{{"name":"Dinner","items":[],"total_calories":0}}],"daily_totals":{{"calories":2100,"protein":158,"carbs":211,"fat":70}}}}],"calorie_target":2100,"macro_targets":{{"protein_g":158,"carbs_g":211,"fat_g":70}},"daily_routine":"Wake at 7AM, breakfast at 8AM, lunch at 1PM, dinner at 7PM, sleep at 10PM."}}\n'
             f"```\n\n"
-            f"Fill ALL 7 days and ALL 5 meals per day with real foods and accurate numbers. The JSON must be valid and complete."
+            f"Fill ALL 7 days and ALL 5 meals per day with real foods and accurate numbers. The JSON must be valid and complete. "
+            f"Every one of the 7 days must independently total within 10% of the calorie target — do not let "
+            f"portions or accuracy drift for later days; use as many items per meal and scale quantities as "
+            f"needed so each day, not just Day 1, lands on target."
             if intent in MEAL_PLAN_INTENTS
             else
             f"Answer the user's question clearly and thoroughly using the clinical guidelines provided above. "
@@ -133,8 +160,19 @@ def _extract_plan_json_and_clean(response_text: str) -> tuple[dict[str, Any] | N
     try:
         plan = json.loads(candidate)
     except json.JSONDecodeError as exc:
-        logger.warning("Failed to parse embedded meal plan JSON: %s", exc)
-        return None, response_text.strip()
+        # LLM output occasionally has minor JSON syntax errors (trailing
+        # commas, stray characters) despite being structurally intact --
+        # try a repair pass before giving up entirely.
+        logger.warning("Strict JSON parse failed (%s), attempting repair", exc)
+        try:
+            plan = json_repair.loads(candidate)
+            if not isinstance(plan, dict) or "days" not in plan:
+                logger.warning("Repaired JSON doesn't look like a meal plan, discarding")
+                return None, response_text.strip()
+            logger.info("JSON repair succeeded")
+        except Exception:
+            logger.exception("JSON repair also failed")
+            return None, response_text.strip()
 
     cleaned = (response_text[:cut_start] + response_text[cut_end:]).strip()
     # Strip any leftover fence/label remnants -- e.g. a bare "meal_plan_json"

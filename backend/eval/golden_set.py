@@ -83,7 +83,11 @@ GOLDEN_CASES: list[GoldenCase] = [
         profile=_BASE_NONVEG,
         user_message="Please reduce the portion sizes in my meal plan, it's too much food.",
         previous_plans=[{"plan_summary": "7-day non-veg muscle gain plan, 3000 kcal", "accepted_at": "2026-08-01"}],
-        expect_plan=True,
+        # "Reduce portion sizes / too much food" is genuinely ambiguous between
+        # "smaller servings, same daily calorie target" and "actually eat less
+        # overall" -- for a muscle-gain profile these mean very different
+        # plans, so the correct response is to ask which one, not guess.
+        expect_plan=False,
     ),
 
     # ── allergy_diet_edge_case ──────────────────────────────────────────────

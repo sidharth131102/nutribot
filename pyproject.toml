@@ -42,6 +42,9 @@ dependencies = [
 
     # Email
     "sendgrid>=6.11.0",
+
+    # JSON repair (LLM-generated JSON occasionally has minor syntax errors)
+    "json-repair>=0.63.4",
 ]
 
 [tool.uv]

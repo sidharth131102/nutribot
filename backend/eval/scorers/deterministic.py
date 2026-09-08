@@ -5,6 +5,8 @@ outside the food-filter allow-list), macro consistency, calorie-target adherence
 Intent-classification correctness and subjective quality are NOT scored here —
 see scorers/judge.py.
 """
+from typing import Any
+
 from backend.agents.state import NutriBotState
 from backend.eval.models import DeterministicResult, GoldenCase
 from backend.utils.food_filter import food_name_matches
@@ -14,6 +16,13 @@ CALORIE_TOLERANCE = 0.15  # ±15%
 
 def _normalize(s: str) -> str:
     return s.strip().lower()
+
+
+def _matched_food(food_name: str, food_context: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for food in food_context:
+        if food_name_matches(food_name, [food]):
+            return food
+    return None
 
 
 def score_deterministic(case: GoldenCase, state: NutriBotState) -> DeterministicResult:
@@ -46,19 +55,36 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
             food_name = _normalize(item.get("food", ""))
             if not food_name:
                 continue
-            for allergy in allergies:
-                if allergy in food_name:
+
+            matched = _matched_food(item.get("food", ""), food_context) if food_context else None
+            if matched is not None:
+                # Check the food's own declared allergens, not a substring match
+                # on its display name -- "soy milk" contains the substring
+                # "milk" but is dairy-free (allergens: ["soy"]), so name-based
+                # matching false-positives against a milk allergy.
+                declared = {_normalize(a) for a in matched.get("allergens", [])}
+                for allergy in allergies:
+                    if allergy in declared:
+                        failures.append(
+                            f"plan includes '{item.get('food')}' which contains allergen '{allergy}'"
+                        )
+            else:
+                # No structured match to check against -- fall back to a
+                # name-based heuristic so an invented/off-list food doesn't
+                # silently skip allergen checking entirely.
+                for allergy in allergies:
+                    if allergy in food_name:
+                        failures.append(
+                            f"plan includes '{item.get('food')}' which may contain allergen '{allergy}'"
+                        )
+                if food_context:
                     failures.append(
-                        f"plan includes '{item.get('food')}' which may contain allergen '{allergy}'"
+                        f"plan includes '{item.get('food')}' not in the approved food_context allow-list"
                     )
-            if food_context and not food_name_matches(item.get("food", ""), food_context):
-                failures.append(
-                    f"plan includes '{item.get('food')}' not in the approved food_context allow-list"
-                )
 
         calorie_result = state.get("calorie_result") or {}
         goal_calories = calorie_result.get("goal_calories")
-        if goal_calories:
+        if goal_calories and case.check_calorie_tolerance:
             low, high = goal_calories * (1 - CALORIE_TOLERANCE), goal_calories * (1 + CALORIE_TOLERANCE)
             for day in proposed_plan.get("days", []):
                 day_calories = day.get("daily_totals", {}).get("calories")

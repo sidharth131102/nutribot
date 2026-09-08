@@ -23,6 +23,11 @@ class GoldenCase(BaseModel):
     chat_history: list[dict[str, str]] = Field(default_factory=list)
     previous_plans: list[dict[str, Any]] = Field(default_factory=list)
     expect_plan: bool | None = None  # None = no assertion on plan_proposed
+    # False when the user_message itself asks to deviate from the profile's
+    # computed goal_calories (e.g. "reduce my portions") -- the model
+    # correctly complying would otherwise look like a calorie-tolerance
+    # failure. True/default: check daily totals against goal_calories.
+    check_calorie_tolerance: bool = True
 
 
 class DeterministicResult(BaseModel):
