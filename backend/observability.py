@@ -9,7 +9,10 @@ trace_id, without needing to touch any individual logger.info(...) call.
 import contextvars
 import json
 import logging
+import os
 import uuid
+
+from backend.config import Settings
 
 trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_id", default="-")
 
@@ -46,3 +49,14 @@ def configure_logging(level: int = logging.INFO) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
+
+
+def configure_tracing(settings: Settings) -> None:
+    """Opt-in LangSmith tracing (Phase 6) -- no-ops unless both enabled and
+    an API key are configured. LangChain's tracer picks these env vars up
+    globally; no code elsewhere needs to know tracing exists."""
+    if not settings.langsmith_tracing_enabled or not settings.langsmith_api_key:
+        return
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
+    os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project

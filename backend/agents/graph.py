@@ -150,7 +150,17 @@ async def run_chat_pipeline(
         "session_id": session_id,
         "user_message": user_message,
     }
-    result = await graph.ainvoke(initial_state)
+    # Correlates a LangSmith trace (when enabled -- see observability.py's
+    # configure_tracing) with this app's own trace_id, so a trace_id in the
+    # structured logs can be looked up directly in the LangSmith dashboard.
+    result = await graph.ainvoke(
+        initial_state,
+        config={
+            "run_name": "nutribot_chat_pipeline",
+            "tags": ["nutribot", "chat"],
+            "metadata": {"trace_id": trace_id, "user_id": user_id, "session_id": session_id},
+        },
+    )
     logger.info(
         "Pipeline complete — intent=%s plan_proposed=%s",
         result.get("intent"),
