@@ -21,7 +21,7 @@ async def rag_agent_node(state: NutriBotState) -> NutriBotState:
     diet_type = profile.get("diet_type", "")
 
     try:
-        rag_context, rag_sources = retrieve_with_sources(
+        rag_context, rag_sources = await retrieve_with_sources(
             query=composite_query,
             medical_conditions=conditions,
             diet_type=diet_type,

@@ -145,6 +145,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         profile={**_BASE_VEG, "medical_conditions": ["diabetes"]},
         user_message="What foods should I avoid with diabetes?",
         expect_plan=False,
+        expected_rag_condition="diabetes",
     ),
     GoldenCase(
         id="rd-02",
@@ -152,6 +153,7 @@ GOLDEN_CASES: list[GoldenCase] = [
         profile={**_BASE_VEG, "medical_conditions": ["pcos"]},
         user_message="What kind of diet helps with PCOS?",
         expect_plan=False,
+        expected_rag_condition="pcos",
     ),
 
     # ── structured_output ───────────────────────────────────────────────────

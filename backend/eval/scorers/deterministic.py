@@ -39,6 +39,13 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
     if case.category == "rag_dependent" and not state.get("rag_sources"):
         failures.append("rag_dependent case returned no rag_sources")
 
+    if case.expected_rag_condition:
+        conditions_returned = {s.get("condition") for s in state.get("rag_sources", [])}
+        if case.expected_rag_condition not in conditions_returned:
+            failures.append(
+                f"expected a '{case.expected_rag_condition}' source, got conditions={conditions_returned}"
+            )
+
     proposed_plan = state.get("proposed_plan")
     if plan_proposed and proposed_plan:
         allergies = {_normalize(a) for a in case.profile.get("allergies", []) if a}

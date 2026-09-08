@@ -28,6 +28,9 @@ class GoldenCase(BaseModel):
     # correctly complying would otherwise look like a calorie-tolerance
     # failure. True/default: check daily totals against goal_calories.
     check_calorie_tolerance: bool = True
+    # For rag_dependent cases: the condition a correct retrieval should surface
+    # among rag_sources (e.g. "diabetes"). None = no assertion (default).
+    expected_rag_condition: str | None = None
 
 
 class DeterministicResult(BaseModel):

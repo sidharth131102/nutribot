@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     rag_chunk_overlap: int = 50
     rag_top_k: int = 6
 
+    # RAG hybrid search + reranking (Phase 5)
+    rag_corpus_path: str = "data/rag_corpus.json"
+    rag_fusion_pool_size: int = 20
+
     # Food DB
     food_db_path: str = "data/food_db.json"
 
