@@ -1,8 +1,9 @@
 """LangGraph stateful multi-agent graph definition for NutriBot.
 
 Graph topology:
-  profile → memory_retrieval → intent → [route] → calorie? → rag? → food?
-    → meal_plan → [extract?] → END
+  input_guardrail → [blocked? END] → profile → memory_retrieval → intent
+    → [route] → calorie? → rag? → food? → meal_plan → output_guardrail
+    → [regenerate? meal_plan] → [extract?] → END
 
 Routing rules:
   CALORIE_CALCULATION  → calorie → meal_plan
@@ -12,10 +13,19 @@ Routing rules:
   ROUTINE_REQUEST      → rag → food → meal_plan
   GENERAL_CONVERSATION → meal_plan
 
-memory_extraction after meal_plan is conditional (see
+memory_extraction after the output guardrail is conditional (see
 backend.memory.extraction.should_attempt_extraction) -- it only runs on
 turns carrying a preference/goal signal, not every turn, to avoid adding a
-3rd Groq call per message on top of the already-fragile rate budget.
+3rd Groq call per message on top of the already-fragile rate budget. It's
+always skipped when guardrail_blocked is true -- there's no real answer to
+extract preferences/goals from a canned safety/fallback response.
+
+input_guardrail (Phase 6) is the new entry point -- it runs before any other
+node, including profile, since a blocked message needs zero DB/profile
+context and should short-circuit before any other work. output_guardrail
+(Phase 6) sits between meal_plan and the extract/end routing, and can cycle
+back to meal_plan once (see backend.guardrails.nodes.MAX_OUTPUT_REGENERATIONS)
+with corrective feedback before falling back to a fixed safe response.
 """
 import logging
 
@@ -30,6 +40,7 @@ from backend.agents.memory_retrieval_agent import memory_retrieval_agent_node
 from backend.agents.profile_agent import profile_agent_node
 from backend.agents.rag_agent import rag_agent_node
 from backend.agents.state import NutriBotState
+from backend.guardrails.nodes import input_guardrail_node, output_guardrail_node
 from backend.memory.extraction import should_attempt_extraction
 from backend.observability import new_trace_id, trace_id_var
 
@@ -68,6 +79,8 @@ def _route_after_rag(state: NutriBotState) -> str:
 
 
 def _route_after_meal_plan(state: NutriBotState) -> str:
+    if state.get("guardrail_blocked"):
+        return "end"
     intent = state.get("intent", "GENERAL_CONVERSATION")
     user_message = state.get("user_message", "")
     if should_attempt_extraction(intent, user_message):
@@ -75,10 +88,21 @@ def _route_after_meal_plan(state: NutriBotState) -> str:
     return "end"
 
 
+def _route_after_input_guardrail(state: NutriBotState) -> str:
+    return "blocked" if state.get("guardrail_blocked") else "continue"
+
+
+def _route_after_output_guardrail(state: NutriBotState) -> str:
+    if not state.get("guardrail_output_ok", True) and not state.get("guardrail_blocked", False):
+        return "regenerate"
+    return _route_after_meal_plan(state)
+
+
 def build_graph() -> StateGraph:
     graph = StateGraph(NutriBotState)
 
     # Register nodes
+    graph.add_node("input_guardrail", input_guardrail_node)
     graph.add_node("profile", profile_agent_node)
     graph.add_node("memory_retrieval", memory_retrieval_agent_node)
     graph.add_node("intent", intent_agent_node)
@@ -86,16 +110,23 @@ def build_graph() -> StateGraph:
     graph.add_node("rag", rag_agent_node)
     graph.add_node("food", food_agent_node)
     graph.add_node("meal_plan", meal_plan_agent_node)
+    graph.add_node("output_guardrail", output_guardrail_node)
     graph.add_node("memory_extraction", memory_extraction_agent_node)
 
     # Fixed edges
-    graph.set_entry_point("profile")
+    graph.set_entry_point("input_guardrail")
     graph.add_edge("profile", "memory_retrieval")
     graph.add_edge("memory_retrieval", "intent")
     graph.add_edge("food", "meal_plan")
+    graph.add_edge("meal_plan", "output_guardrail")
     graph.add_edge("memory_extraction", END)
 
     # Conditional routing
+    graph.add_conditional_edges(
+        "input_guardrail",
+        _route_after_input_guardrail,
+        {"continue": "profile", "blocked": END},
+    )
     graph.add_conditional_edges(
         "intent",
         _route_after_intent,
@@ -112,9 +143,9 @@ def build_graph() -> StateGraph:
         {"food": "food", "meal_plan": "meal_plan"},
     )
     graph.add_conditional_edges(
-        "meal_plan",
-        _route_after_meal_plan,
-        {"extract": "memory_extraction", "end": END},
+        "output_guardrail",
+        _route_after_output_guardrail,
+        {"regenerate": "meal_plan", "extract": "memory_extraction", "end": END},
     )
 
     return graph

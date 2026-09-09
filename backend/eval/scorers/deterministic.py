@@ -36,6 +36,9 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
     if case.expect_plan is not None and plan_proposed != case.expect_plan:
         failures.append(f"expected plan_proposed={case.expect_plan}, got {plan_proposed}")
 
+    if case.expect_input_blocked and not state.get("guardrail_blocked"):
+        failures.append("expected the input guardrail to block this message, but it did not")
+
     if case.category == "rag_dependent" and not state.get("rag_sources"):
         failures.append("rag_dependent case returned no rag_sources")
 

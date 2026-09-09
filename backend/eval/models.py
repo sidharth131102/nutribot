@@ -31,6 +31,10 @@ class GoldenCase(BaseModel):
     # For rag_dependent cases: the condition a correct retrieval should surface
     # among rag_sources (e.g. "diabetes"). None = no assertion (default).
     expected_rag_condition: str | None = None
+    # True when this case should be caught by the input guardrail (Phase 6)
+    # before any generation happens -- e.g. a medical-emergency or
+    # medication-misuse message.
+    expect_input_blocked: bool = False
 
 
 class DeterministicResult(BaseModel):

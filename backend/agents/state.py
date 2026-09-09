@@ -40,3 +40,9 @@ class NutriBotState(TypedDict, total=False):
     # ── Memory Retrieval / Extraction (Phase 3) ───────────────────────────────
     relevant_memories: list[dict[str, Any]]  # top-N active long-term facts
     recent_events: list[dict[str, Any]]      # top-N recent episodic events
+
+    # ── Runtime guardrails (Phase 6) ──────────────────────────────────────────
+    guardrail_blocked: bool                # True: input-blocked OR output-cap-exceeded fallback
+    guardrail_regeneration_count: int      # 0.. capped at MAX_OUTPUT_REGENERATIONS
+    guardrail_feedback: Optional[str]      # corrective text fed into the next meal_plan_agent_node call
+    guardrail_output_ok: bool              # transient, this-pass result -- drives routing only

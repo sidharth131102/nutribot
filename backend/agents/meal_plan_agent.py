@@ -22,7 +22,11 @@ logger = logging.getLogger("nutribot.agent.meal_plan")
 MEAL_PLAN_INTENTS = {"MEAL_PLAN_REQUEST", "PLAN_MODIFICATION", "ROUTINE_REQUEST"}
 
 
-def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONVERSATION") -> str:
+def _build_system_prompt(
+    context: GenerationContext,
+    intent: str = "GENERAL_CONVERSATION",
+    guardrail_feedback: str | None = None,
+) -> str:
     calorie_result = context.calorie_result
 
     calorie_block = ""
@@ -115,6 +119,12 @@ def _build_system_prompt(context: GenerationContext, intent: str = "GENERAL_CONV
             f"Answer the user's question clearly and thoroughly using the clinical guidelines provided above. "
             f"Do not generate a meal plan unless explicitly asked. "
             f"Cite relevant guidelines naturally in your response."
+        )
+        + (
+            f"\n\nCORRECTION REQUIRED: your previous response for this exact request had a problem — "
+            f"{guardrail_feedback} Regenerate a corrected response that fixes this."
+            if guardrail_feedback
+            else ""
         )
     )
 
@@ -224,7 +234,7 @@ async def meal_plan_agent_node(state: NutriBotState) -> NutriBotState:
     user_message = state.get("user_message", "")
     context = build_context(state)
 
-    system_prompt = _build_system_prompt(context, intent)
+    system_prompt = _build_system_prompt(context, intent, state.get("guardrail_feedback"))
     current_message = Message(role="user", content=user_message)
 
     all_messages = [Message(role="system", content=system_prompt)] + context.chat_history + [current_message]
