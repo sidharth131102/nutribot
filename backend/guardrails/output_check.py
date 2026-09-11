@@ -32,10 +32,17 @@ before it is shown to a user. Check for:
 1. Diagnosis language -- the response must never diagnose a medical condition, claim
    certainty about what a symptom means, or prescribe/adjust medication. It's fine to
    discuss diet approaches for a condition the user already told us they have.
-2. Unsupported or fabricated medical/clinical claims not grounded in general nutrition
-   knowledge.
+2. Fabricated medical/clinical claims -- specific statistics, studies, or mechanisms
+   presented as fact with no basis in general nutrition knowledge.
 3. Foods mentioned in the text that are NOT in the approved food list below, if one is
    provided (an empty list means no plan was generated this turn -- skip this check).
+
+Do NOT flag precise calorie, macro, or nutrient numbers just for being specific or
+numeric -- those come from a verified calculation elsewhere in the system, not from
+this response's own reasoning, and stating them plainly is expected and safe. Do NOT
+flag ordinary, well-established nutrition guidance (e.g. "high-GI foods raise blood
+sugar faster", "fiber slows digestion") as a clinical claim -- only flag something a
+reasonable clinician would consider actually unsupported, invented, or medically risky.
 
 Reply with ONLY a JSON object, no other text:
 {"safe": true|false, "issues": ["short issue description", ...], "feedback": "one short corrective instruction if unsafe, empty string if safe"}"""
@@ -48,7 +55,12 @@ def _scan_allergens_in_prose(response: str, allergies: list[str]) -> list[str]:
         allergy_lower = allergy.strip().lower()
         if not allergy_lower:
             continue
-        for match in re.finditer(re.escape(allergy_lower), lowered):
+        # Word-boundary match, not a bare substring -- "nut" as a plain
+        # substring false-positives on "nutrition"/"nutrient"/"nutritious"
+        # (this IS a nutrition assistant, so those words appear constantly),
+        # and "egg" false-positives on "eggplant". \b prevents both.
+        pattern = re.compile(r"\b" + re.escape(allergy_lower) + r"\b")
+        for match in pattern.finditer(lowered):
             window_start = max(0, match.start() - _NEGATION_LOOKBACK_CHARS)
             window = lowered[window_start:match.start()]
             if _NEGATION_RE.search(window):
@@ -97,8 +109,13 @@ async def check_output(
         )
         parsed = _extract_result(result.text)
         llm_safe = bool(parsed.get("safe", True)) if parsed else True
-        issues = list(parsed.get("issues", [])) if parsed else []
-        feedback = parsed.get("feedback", "") if parsed else ""
+        # Guard against a malformed response (e.g. "issues" coming back as a
+        # bare string) -- list("some string") would silently explode into
+        # individual characters instead of failing loudly.
+        raw_issues = parsed.get("issues") if parsed else None
+        issues = [str(i) for i in raw_issues] if isinstance(raw_issues, list) else []
+        raw_feedback = parsed.get("feedback") if parsed else ""
+        feedback = raw_feedback if isinstance(raw_feedback, str) else ""
     except Exception:
         logger.exception("Output guardrail LLM check failed, failing open on this half")
         llm_safe, issues, feedback = True, [], ""

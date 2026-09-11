@@ -39,6 +39,21 @@ def test_scan_handles_empty_allergy_list():
     assert _scan_allergens_in_prose("Any text here.", []) == []
 
 
+def test_scan_does_not_false_positive_on_nutrition_words():
+    # "nut" as a bare substring matches "nutrition"/"nutrient"/"nutritious" --
+    # catastrophic for a nutrition assistant with any nut-allergic user.
+    text = "Good nutrition is important. This meal has balanced nutrients and is nutritious."
+    assert _scan_allergens_in_prose(text, ["nut"]) == []
+
+
+def test_scan_does_not_false_positive_on_eggplant():
+    assert _scan_allergens_in_prose("Try this eggplant curry with rice.", ["egg"]) == []
+
+
+def test_scan_still_detects_whole_word_nut_allergen():
+    assert _scan_allergens_in_prose("This recipe includes cashews and walnuts (nut).", ["nut"]) == ["nut"]
+
+
 # ── check_output: fail-open + combined safety logic ──────────────────────────
 
 @pytest.mark.asyncio
@@ -51,6 +66,26 @@ async def test_check_output_fails_open_on_provider_error(monkeypatch):
     result = await check_output("A safe response.", None, [], [], [])
 
     assert result.safe is True
+
+
+@pytest.mark.asyncio
+async def test_check_output_handles_malformed_issues_type(monkeypatch):
+    # "issues" as a bare string, not an array -- list("some string") would
+    # silently explode into individual characters instead of failing loudly.
+    class _FakeResult:
+        text = '{"safe": false, "issues": "diagnosis language detected", "feedback": 123}'
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda: _FakeProvider())
+
+    result = await check_output("some response", None, [], [], [])
+
+    assert result.issues == []
+    assert result.feedback == ""
+    assert result.safe is False
 
 
 @pytest.mark.asyncio

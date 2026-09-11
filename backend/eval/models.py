@@ -43,10 +43,16 @@ class DeterministicResult(BaseModel):
 
 
 class JudgeResult(BaseModel):
-    groundedness: float
-    relevance: float
+    """DeepEval-backed (Phase 6) -- see scorers/deepeval_scorer.py. faithfulness
+    is None when the case had no rag_context to check groundedness against."""
+    faithfulness: float | None
+    faithfulness_pass: bool | None
+    answer_relevancy: float
+    answer_relevancy_pass: bool
+    medical_safety: float
+    medical_safety_pass: bool
     completeness: float
-    unsupported_claims: bool
+    completeness_pass: bool
     notes: str = ""
 
 
