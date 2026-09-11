@@ -1,12 +1,15 @@
 # NutriBot
 
-**NutriBot** is a production-grade AI nutrition assistant that combines an 8-node LangGraph pipeline with a typed memory system, deterministic calorie calculations, RAG-powered nutrition knowledge, and a personalized food database to generate safe, medically-aware meal plans via a conversational interface.
+**NutriBot** is a production-grade AI nutrition assistant that combines a 10-node LangGraph pipeline (with runtime input/output safety guardrails) with a typed memory system, deterministic calorie calculations, RAG-powered nutrition knowledge, and a personalized food database to generate safe, medically-aware meal plans via a conversational interface.
 
 ---
 
 ## Features
 
-- **Multi-agent LangGraph pipeline** — 8 specialized nodes (Profile, Memory Retrieval, Intent, Calorie, RAG, Food, MealPlan, Memory Extraction) orchestrated in a stateful graph with conditional routing
+- **Multi-agent LangGraph pipeline** — 10 specialized nodes (Input Guardrail, Profile, Memory Retrieval, Intent, Calorie, RAG, Food, MealPlan, Output Guardrail, Memory Extraction) orchestrated in a stateful graph with conditional routing
+- **Runtime safety guardrails** — every message is checked before generation (medical emergency / medication misuse / self-harm) and every response is checked after (diagnosis-language, unsupported claims, allergens in free text), with one automatic regeneration attempt before falling back to a fixed safe response
+- **Rate limiting** — Mongo-backed, applied to registration, login, and chat endpoints
+- **Observability** — structured JSON logging with a per-request trace_id, plus opt-in LangSmith tracing
 - **Typed memory system** — profile (latest-valid fields), short-term (rolling chat window), long-term semantic (extracted preferences/goals with supersession), and episodic (goal changes, accepted plans) layers, assembled by a Context Builder into one typed object per generation call
 - **Deterministic nutrition math** — BMR and TDEE are always computed via the Mifflin-St Jeor formula; the LLM never invents calorie numbers
 - **Condition-aware macro splits** — automatic carb-to-protein rebalancing for users with diabetes or PCOS
@@ -24,22 +27,25 @@
 ## Architecture
 
 ```
-profile → memory_retrieval → intent → [route] → calorie? → rag? → food?
-  → meal_plan → [extract?] → END
+input_guardrail → [blocked? END] → profile → memory_retrieval → intent
+  → [route] → calorie? → rag? → food? → meal_plan → output_guardrail
+  → [regenerate? meal_plan] → [extract?] → END
 ```
 
 ### Agent pipeline
 
 | # | Agent | Responsibility |
 |---|-------|---------------|
-| 1 | **Profile** | Loads user profile from MongoDB, builds the CAG context block, fetches chat history and previous accepted plans |
-| 2 | **Memory Retrieval** | Fetches the user's top active long-term memory facts + recent episodic events (pure DB read, no LLM call) |
-| 3 | **Intent** | Classifies the message into one of six intents using a fast LLM |
-| 4 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
-| 5 | **RAG** | Hybrid search (Pinecone dense + in-process BM25, fused via RRF) with optional condition-metadata filtering, LLM-reranked down to the final top-k |
-| 6 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
-| 7 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply |
-| 8 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd LLM call per message. |
+| 1 | **Input Guardrail** | Classifies the message (medical emergency / medication misuse / self-harm / none) before any other work; a block shows a fixed, vetted safety string — never LLM-authored text. Fails open on any error. |
+| 2 | **Profile** | Loads user profile from MongoDB, builds the CAG context block, fetches chat history and previous accepted plans |
+| 3 | **Memory Retrieval** | Fetches the user's top active long-term memory facts + recent episodic events (pure DB read, no LLM call) |
+| 4 | **Intent** | Classifies the message into one of six intents using a fast LLM |
+| 5 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
+| 6 | **RAG** | Hybrid search (Pinecone dense + in-process BM25, fused via RRF) with optional condition-metadata filtering, LLM-reranked down to the final top-k |
+| 7 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
+| 8 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply |
+| 9 | **Output Guardrail** | Deterministic allergen-in-prose scan + an LLM check for diagnosis-language/fabricated claims/off-allow-list foods. On failure, regenerates once with corrective feedback; falls back to a fixed safe response if still unsafe. |
+| 10 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd LLM call per message. Always skipped when a guardrail blocked/fell back. |
 
 ### Intent routing
 
@@ -384,6 +390,9 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `RAG_CHUNK_OVERLAP` | `50` | Token overlap between chunks |
 | `RAG_CORPUS_PATH` | `data/rag_corpus.json` | Local BM25 keyword-search corpus, written by ingestion |
 | `RAG_FUSION_POOL_SIZE` | `20` | Candidates pulled from each of dense/sparse search before RRF fusion + reranking |
+| `LANGSMITH_TRACING_ENABLED` | `false` | Opt-in LangSmith tracing — off unless both this and `LANGSMITH_API_KEY` are set |
+| `LANGSMITH_API_KEY` | — | API key from a [smith.langchain.com](https://smith.langchain.com) account |
+| `LANGSMITH_PROJECT` | `nutribot` | LangSmith project name traces are grouped under |
 | `FRONTEND_URL` | `http://localhost:3000` | Allowed CORS origin |
 
 ---
@@ -424,6 +433,8 @@ To run the evaluation harness manually instead (real API calls, not part of CI):
 ```bash
 uv run python -m backend.eval.runner
 ```
+
+Scores each case both deterministically and via [DeepEval](https://github.com/confident-ai/deepeval) metrics (faithfulness, answer relevancy, and two custom rubrics for medical-safety compliance and completeness) — DeepEval is a dev-only dependency, never installed in production, and its judge calls route through the same `LLMProvider` abstraction as everything else (no separate API key). Judge results gate the exit code for safety-relevant categories (`rag_dependent`, `medical_context`, `allergy_diet_edge_case`); elsewhere they're informational.
 
 ---
 
