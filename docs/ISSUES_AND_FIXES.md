@@ -1,6 +1,6 @@
 # Issues & Fixes Log
 
-> **Purpose**: every significant bug or gotcha hit while building this project, with root cause and fix, in one scannable place. Organized chronologically by the work that surfaced each one. For the phase plan this work sits inside, see `docs/ROADMAP.md`. For full implementation detail per phase (files, design rationale, live-verification notes), see `docs/CURRENT_STATE.md`.
+> **Purpose**: every significant bug or gotcha hit while building this project, with root cause and fix, in one scannable place. Organized chronologically by the work that surfaced each one. For how the system works today and what not to break, see `docs/PROJECT_CONTEXT.md`. For the phase plan this work sits inside, see `docs/ROADMAP.md`. For full implementation detail per phase (files, design rationale, live-verification notes), see `docs/CURRENT_STATE.md`.
 >
 > Each entry: **Symptom** (what was observed) → **Root cause** → **Fix** (what changed, where).
 

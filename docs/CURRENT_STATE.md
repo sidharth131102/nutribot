@@ -1,6 +1,6 @@
 # NutriBot — Current State (Phase 0 recon)
 
-> **Doc map**: this file is a detailed, chronological build log — what shipped in each phase, file-by-file, with live-verification notes. For the phase plan and current status at a glance, see `docs/ROADMAP.md`. For a scannable catalog of every significant bug hit and its fix (extracted from this file's narrative into one place), see `docs/ISSUES_AND_FIXES.md`.
+> **Doc map**: this file is a detailed, chronological build log — what shipped in each phase, file-by-file, with live-verification notes. Before changing code, read `docs/PROJECT_CONTEXT.md` first (architecture + what not to break). For the phase plan and current status at a glance, see `docs/ROADMAP.md`. For a scannable catalog of every significant bug hit and its fix (extracted from this file's narrative into one place), see `docs/ISSUES_AND_FIXES.md`.
 >
 > Ground-truthed against the actual code on 2026-08-02, ahead of the v2 roadmap. Supersedes anything in `README.md` or `.env.example` where they disagree — both had drifted from the real code before this pass (see [Vercel deployment work] for the RAG/dependency corrections already made this session).
 

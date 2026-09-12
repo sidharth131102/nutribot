@@ -1,6 +1,6 @@
 # NutriBot v2 Roadmap
 
-> **Purpose of this document**: a self-contained phase plan for anyone (human or AI agent) picking up this project cold. It answers "what is this project trying to become, in what order, and how far along is it?" For a detailed, chronological build log of *how* each phase was implemented (files touched, design decisions, live-verification notes), see `docs/CURRENT_STATE.md`. For a catalog of every significant bug hit and how it was fixed, see `docs/ISSUES_AND_FIXES.md`.
+> **Purpose of this document**: a self-contained phase plan for anyone (human or AI agent) picking up this project cold. It answers "what is this project trying to become, in what order, and how far along is it?" For how the system actually works right now and what you must not break, see `docs/PROJECT_CONTEXT.md` (read that one first if you're about to write code). For a detailed, chronological build log of *how* each phase was implemented (files touched, design decisions, live-verification notes), see `docs/CURRENT_STATE.md`. For a catalog of every significant bug hit and how it was fixed, see `docs/ISSUES_AND_FIXES.md`.
 
 ## What this project is
 
