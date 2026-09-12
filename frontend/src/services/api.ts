@@ -35,6 +35,8 @@ export type AuthUser = {
   diet_type?: string;
   goal?: string;
   bot_name: string;
+  /** Locales the mic listens for (BCP-47, max 4). Empty = server default. */
+  spoken_languages: string[];
   profile_complete: boolean;
 };
 
@@ -90,6 +92,7 @@ export type ProfilePayload = {
   diet_type: string;
   goal: string;
   bot_name: string;
+  spoken_languages?: string[];
 };
 
 export async function createProfile(payload: ProfilePayload): Promise<AuthUser> {
@@ -178,6 +181,18 @@ export type SpeechTokenResponse = {
 
 export async function getSpeechToken(): Promise<SpeechTokenResponse> {
   return request<SpeechTokenResponse>("/api/speech/token");
+}
+
+export type SpokenLocale = { code: string; label: string };
+
+export type SpokenLanguagesResponse = {
+  supported: SpokenLocale[];
+  default: string[];
+  max_selectable: number;
+};
+
+export async function getSpokenLanguages(): Promise<SpokenLanguagesResponse> {
+  return request<SpokenLanguagesResponse>("/api/speech/languages");
 }
 
 export async function getChatHistory(sessionId: string): Promise<{ session_id: string; messages: ChatMessage[] }> {

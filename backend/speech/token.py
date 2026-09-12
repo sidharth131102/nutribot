@@ -57,4 +57,5 @@ async def issue_token(settings: Settings, client: httpx.AsyncClient | None = Non
 
 
 def recognition_languages(settings: Settings) -> list[str]:
+    """Server-default candidate locales. Per-user lists live in locales.py."""
     return [lang.strip() for lang in settings.speech_recognition_languages.split(",") if lang.strip()]

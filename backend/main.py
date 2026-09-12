@@ -37,7 +37,7 @@ from backend.models.medical_document import (
     MedicalDocumentSummary,
 )
 from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
-from backend.models.speech import SpeechTokenResponse
+from backend.models.speech import SpeechTokenResponse, SpokenLanguagesResponse, SpokenLocale
 from backend.models.user import (
     LoginRequest,
     ProfileCreateRequest,
@@ -48,6 +48,7 @@ from backend.models.user import (
 )
 from backend.observability import configure_logging, configure_tracing, new_trace_id, trace_id_var
 from backend.security.rate_limit import chat_message_rate_limit, login_rate_limit, register_rate_limit
+from backend.speech import locales as speech_locales
 from backend.speech import multilingual
 from backend.speech import token as speech_token
 
@@ -379,10 +380,11 @@ async def chat_message(
 # ── /api/speech ───────────────────────────────────────────────────────────────
 
 @app.get("/api/speech/token", response_model=SpeechTokenResponse)
-async def get_speech_token(_: str = Depends(get_current_user_id)):
+async def get_speech_token(user_id: str = Depends(get_current_user_id)):
     """Short-lived Azure Speech token for browser-side recognition. The
     subscription key never leaves the server; the browser gets a 10-minute
-    token and the candidate languages to auto-detect between."""
+    token and the candidate languages to auto-detect between -- the user's
+    own "languages I speak" list, or the server default if they never set one."""
     settings = get_settings()
     if not speech_token.is_configured(settings):
         raise HTTPException(status_code=503, detail="Voice input is not configured on this server.")
@@ -391,11 +393,22 @@ async def get_speech_token(_: str = Depends(get_current_user_id)):
     except Exception as exc:
         logger.exception("Speech token request failed: %s", exc)
         raise HTTPException(status_code=502, detail="Could not obtain a speech token from Azure.") from exc
+    user = await UserScopedRepo(get_db(), user_id).get_user()
     return SpeechTokenResponse(
         token=issued.token,
         region=issued.region,
         expires_in_seconds=issued.expires_in_seconds,
-        languages=speech_token.recognition_languages(settings),
+        languages=speech_locales.languages_for_user(settings, user),
+    )
+
+
+@app.get("/api/speech/languages", response_model=SpokenLanguagesResponse)
+async def list_spoken_languages(_: str = Depends(get_current_user_id)):
+    """The locales a user may pick for "languages I speak" on their profile."""
+    return SpokenLanguagesResponse(
+        supported=[SpokenLocale(code=c, label=l) for c, l in speech_locales.SUPPORTED_SPOKEN_LOCALES.items()],
+        default=speech_locales.default_spoken_languages(get_settings()),
+        max_selectable=speech_locales.MAX_SPOKEN_LANGUAGES,
     )
 
 

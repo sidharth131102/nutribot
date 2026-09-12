@@ -44,6 +44,13 @@ async function tokenData(): Promise<SpeechTokenResponse> {
   }
 }
 
+/** Drop the cached token so the next recognition re-fetches it -- needed
+ *  after the user changes their "languages I speak", which ride on the token
+ *  response. */
+export function resetSpeechToken(): void {
+  cached = null;
+}
+
 /** Whether the server has voice input configured (token endpoint reachable). */
 export async function isVoiceAvailable(): Promise<boolean> {
   try {

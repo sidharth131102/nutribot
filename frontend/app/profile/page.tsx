@@ -6,11 +6,14 @@ import {
   createProfile,
   getConsentStatus,
   getMyProfile,
+  getSpokenLanguages,
   grantConsent,
   updateProfile,
   type AuthUser,
   type ProfilePayload,
+  type SpokenLanguagesResponse,
 } from "@/src/services/api";
+import { resetSpeechToken } from "@/src/services/speech";
 
 const STEPS = ["Personal", "Health", "Lifestyle", "Personalize"] as const;
 
@@ -119,6 +122,7 @@ const EMPTY_FORM = {
   diet_type: "non_vegetarian",
   goal: "maintenance",
   bot_name: "Nova",
+  spoken_languages: [] as string[],
 };
 
 /** Split stored values into "known option" chips and a free-text remainder,
@@ -154,6 +158,7 @@ function formFromProfile(user: AuthUser): typeof EMPTY_FORM {
     diet_type: user.diet_type ?? "non_vegetarian",
     goal: user.goal ?? "maintenance",
     bot_name: user.bot_name || "Nova",
+    spoken_languages: user.spoken_languages ?? [],
   };
 }
 
@@ -168,6 +173,9 @@ export default function ProfileBuilderPage() {
   const [initializing, setInitializing] = useState(true);
   const [consentGranted, setConsentGranted] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+  // Voice-input language options; null while loading or if the server has
+  // no voice support (the selector simply doesn't render then).
+  const [spokenOptions, setSpokenOptions] = useState<SpokenLanguagesResponse | null>(null);
 
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -200,6 +208,11 @@ export default function ProfileBuilderPage() {
           setConsentChecked(consent.granted);
         } catch {
           // No consent record yet -- treated as not granted.
+        }
+        try {
+          setSpokenOptions(await getSpokenLanguages());
+        } catch {
+          // Older backend or voice not deployed -- hide the selector.
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load your profile");
@@ -270,6 +283,7 @@ export default function ProfileBuilderPage() {
         diet_type: form.diet_type,
         goal: form.goal,
         bot_name: form.bot_name.trim() || "Nova",
+        spoken_languages: form.spoken_languages,
       };
 
       // The backend refuses to store medical conditions without recorded
@@ -281,6 +295,7 @@ export default function ProfileBuilderPage() {
 
       const user = editMode ? await updateProfile(payload) : await createProfile(payload);
       localStorage.setItem("nutribot_user", JSON.stringify(user));
+      resetSpeechToken(); // the mic's language list rides on the token
       router.push("/chat");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save profile");
@@ -534,6 +549,41 @@ export default function ProfileBuilderPage() {
                   Your bot will use this name in all conversations.
                 </p>
               </Field>
+
+              {spokenOptions && (
+                <Field label={`Languages you speak (for voice input, up to ${spokenOptions.max_selectable})`}>
+                  <MultiSelect
+                    options={spokenOptions.supported.map((o) => o.label)}
+                    selected={form.spoken_languages
+                      .map((code) => spokenOptions.supported.find((o) => o.code === code)?.label)
+                      .filter((l): l is string => Boolean(l))}
+                    onChange={(labels) => {
+                      const codes = labels
+                        .map((label) => spokenOptions.supported.find((o) => o.label === label)?.code)
+                        .filter((c): c is string => Boolean(c));
+                      // One variant per language (en-IN and en-US can't both be
+                      // listened for) and at most max_selectable -- the same
+                      // rules the backend enforces, applied early for feedback.
+                      const bases = new Set<string>();
+                      const deduped = codes.filter((c) => {
+                        const base = c.split("-")[0];
+                        if (bases.has(base)) return false;
+                        bases.add(base);
+                        return true;
+                      });
+                      set("spoken_languages", deduped.slice(-spokenOptions.max_selectable));
+                    }}
+                  />
+                  <p className="text-xs text-muted mt-1.5">
+                    The microphone auto-detects between these when you speak.{" "}
+                    {form.spoken_languages.length === 0
+                      ? `Leave empty to use the default (${spokenOptions.default
+                          .map((code) => spokenOptions.supported.find((o) => o.code === code)?.label ?? code)
+                          .join(", ")}).`
+                      : "Pick just one for the most accurate recognition."}
+                  </p>
+                </Field>
+              )}
 
               <div className="bg-panel border border-border rounded-xl p-4 text-sm text-muted space-y-1 mt-2">
                 <p>

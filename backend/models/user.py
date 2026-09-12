@@ -2,7 +2,9 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+from backend.speech.locales import validate_spoken_languages
 
 
 class Gender(StrEnum):
@@ -57,6 +59,14 @@ class ProfileCreateRequest(BaseModel):
     diet_type: DietType
     goal: Goal
     bot_name: str = Field(default="Nova", min_length=1)
+    # Locales the mic listens for (BCP-47, max 4, one per language). Empty =
+    # the server default list. Validated in backend/speech/locales.py.
+    spoken_languages: list[str] = Field(default_factory=list)
+
+    @field_validator("spoken_languages")
+    @classmethod
+    def _check_spoken_languages(cls, value: list[str]) -> list[str]:
+        return validate_spoken_languages(value)
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -72,6 +82,12 @@ class ProfileUpdateRequest(BaseModel):
     diet_type: Optional[DietType] = None
     goal: Optional[Goal] = None
     bot_name: Optional[str] = Field(default=None, min_length=1)
+    spoken_languages: Optional[list[str]] = None
+
+    @field_validator("spoken_languages")
+    @classmethod
+    def _check_spoken_languages(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        return None if value is None else validate_spoken_languages(value)
 
 
 class UserInDB(BaseModel):
@@ -91,6 +107,7 @@ class UserInDB(BaseModel):
     diet_type: Optional[DietType] = None
     goal: Optional[Goal] = None
     bot_name: str = "Nova"
+    spoken_languages: list[str] = Field(default_factory=list)
     profile_complete: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -111,6 +128,7 @@ class UserPublic(BaseModel):
     diet_type: Optional[DietType] = None
     goal: Optional[Goal] = None
     bot_name: str = "Nova"
+    spoken_languages: list[str] = Field(default_factory=list)
     profile_complete: bool = False
 
 
