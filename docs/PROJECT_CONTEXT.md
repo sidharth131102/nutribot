@@ -55,7 +55,7 @@ This is a **LangGraph `StateGraph`**, compiled once (`get_compiled_graph()`, mod
 | `security/` | `rate_limit.py` — Mongo-backed rate limiting (Phase 6) |
 | `speech/` | Voice + multilingual: `token.py` (Azure Speech tokens), `translation.py` (Azure Translator), `multilingual.py` (translate-at-the-edges orchestration around the chat endpoint), `locales.py` (per-user "languages I speak" validation) |
 | `eval/` | The offline evaluation harness — golden set, pipeline runner (real node functions, no MongoDB), deterministic + DeepEval scorers |
-| `tools/` | `calorie_tool.py` (the ONLY place BMR/TDEE/macro math happens — invariant 1), `email_tool.py` |
+| `tools/` | `calorie_tool.py` (the ONLY place BMR/TDEE/macro math happens — invariant 1), `email_tool.py`, `pdf_tool.py` (plan → PDF, numbers verbatim from the computed plan) |
 | `utils/` | `food_filter.py` (the pre-generation allow-list — invariant 3) |
 | `models/` | Pydantic request/response/DB schemas, one file per domain |
 | `auth/` | JWT + Google OAuth |
@@ -78,6 +78,7 @@ This pattern (invariant 6) means: if you need to call a vendor SDK, find the fil
 | MongoDB | `backend/db/mongo.py` |
 | SendGrid | `backend/tools/email_tool.py` |
 | Google OAuth | `backend/auth/google_oauth.py` |
+| ReportLab (meal-plan PDF rendering) | `backend/tools/pdf_tool.py` |
 | Azure Speech (token minting only — recognition runs in the browser) | `backend/speech/token.py` |
 | Azure Translator (REST v3) | `backend/speech/translation.py` |
 

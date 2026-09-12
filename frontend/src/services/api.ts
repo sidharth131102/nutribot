@@ -170,6 +170,23 @@ export async function sendMessage(
   });
 }
 
+/** Render a plan (proposed or accepted) to PDF on the server and hand the
+ *  bytes back. Uses raw fetch because `request` assumes JSON. */
+export async function downloadPlanPdf(plan: Record<string, unknown>): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(`${API_BASE}/api/plans/pdf`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ plan_data: plan }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ detail: "Could not generate the PDF" }));
+    throw new Error(data.detail ?? `HTTP ${res.status}`);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="?([^"]+)"?/.exec(disposition);
+  return { blob: await res.blob(), filename: match?.[1] ?? "nutribot-meal-plan.pdf" };
+}
+
 // ── Speech ─────────────────────────────────────────────────────────────────────
 
 export type SpeechTokenResponse = {

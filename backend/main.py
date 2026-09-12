@@ -8,6 +8,8 @@ from bson import ObjectId
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from pydantic import ValidationError
 
 from backend.agents.email_agent import deliver_plan_email
 from backend.agents.graph import run_chat_pipeline
@@ -36,7 +38,7 @@ from backend.models.medical_document import (
     DocumentUploadResponse,
     MedicalDocumentSummary,
 )
-from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
+from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse, PlanPdfRequest, WeeklyMealPlan
 from backend.models.speech import SpeechTokenResponse, SpokenLanguagesResponse, SpokenLocale
 from backend.models.user import (
     LoginRequest,
@@ -51,6 +53,7 @@ from backend.security.rate_limit import chat_message_rate_limit, login_rate_limi
 from backend.speech import locales as speech_locales
 from backend.speech import multilingual
 from backend.speech import token as speech_token
+from backend.tools.pdf_tool import render_meal_plan_pdf
 
 MEDICAL_CONSENT_TYPE = "medical_data_processing"
 
@@ -482,6 +485,56 @@ async def accept_plan(
 async def get_saved_plans(user_id: str = Depends(get_current_user_id)):
     plans = await UserScopedRepo(get_db(), user_id).get_accepted_plans()
     return {"plans": plans}
+
+
+def _pdf_response(pdf_bytes: bytes, user_name: str) -> Response:
+    slug = "".join(ch for ch in user_name.lower() if ch.isalnum()) or "user"
+    filename = f"nutribot-meal-plan-{slug}-{datetime.utcnow().date().isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+async def _render_plan_for_user(user_id: str, plan_data: dict) -> Response:
+    # Validate the shape before rendering so a malformed plan is a clean 422,
+    # not a reportlab traceback.
+    try:
+        plan = WeeklyMealPlan(**plan_data).model_dump()
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid plan: {exc.errors()[0].get('msg', 'shape mismatch')}") from exc
+    if not plan["days"]:
+        raise HTTPException(status_code=422, detail="Invalid plan: it has no days.")
+
+    user = await UserScopedRepo(get_db(), user_id).get_user() or {}
+    user_name = (user.get("full_name") or "").split()[0] or "there"
+    pdf_bytes = render_meal_plan_pdf(
+        plan,
+        user_name=user_name,
+        bot_name=user.get("bot_name", "Nova"),
+        profile=user,
+    )
+    return _pdf_response(pdf_bytes, user_name)
+
+
+@app.post("/api/plans/pdf")
+async def download_plan_pdf(payload: PlanPdfRequest, user_id: str = Depends(get_current_user_id)):
+    """Render a plan (proposed or accepted -- whatever the client holds) as a
+    downloadable PDF. Numbers are taken verbatim from the plan; the plan
+    itself was computed by plan_builder, so the document is correct by
+    construction."""
+    return await _render_plan_for_user(user_id, payload.plan_data)
+
+
+@app.get("/api/plans/{plan_id}/pdf")
+async def download_saved_plan_pdf(plan_id: str, user_id: str = Depends(get_current_user_id)):
+    """The same document for a previously accepted plan, by its plan_id."""
+    plans = await UserScopedRepo(get_db(), user_id).get_accepted_plans()
+    match = next((p for p in plans if p.get("plan_id") == plan_id), None)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return await _render_plan_for_user(user_id, match.get("plan_full") or {})
 
 
 # ── /api/consent ──────────────────────────────────────────────────────────────

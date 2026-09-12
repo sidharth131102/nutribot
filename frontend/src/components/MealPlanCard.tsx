@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { downloadPlanPdf } from "@/src/services/api";
+
 type MealItem = {
   food: string;
   quantity: string;
@@ -36,14 +39,53 @@ type Props = {
 };
 
 export default function MealPlanCard({ plan }: Props) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    if (downloading) return;
+    setDownloadError(null);
+    setDownloading(true);
+    try {
+      const { blob, filename } = await downloadPlanPdf(plan as unknown as Record<string, unknown>);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Could not generate the PDF");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-surface p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-text">7-Day Meal Plan</h3>
-        <span className="text-sm text-muted">
-          Target: {plan.calorie_target} kcal/day
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-lg font-semibold text-text">{plan.days.length}-Day Meal Plan</h3>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted">
+            Target: {plan.calorie_target} kcal/day
+          </span>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            title="Download this plan as a PDF"
+            className="flex items-center gap-1.5 text-xs text-muted border border-border rounded-lg px-2.5 py-1.5
+              hover:text-primary hover:border-primary disabled:opacity-50 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+            </svg>
+            {downloading ? "Preparing…" : "PDF"}
+          </button>
+        </div>
       </div>
+      {downloadError && <p className="text-xs text-red-400">{downloadError}</p>}
 
       <div className="flex gap-3 text-sm">
         <span className="bg-panel border border-border rounded-lg px-3 py-1 text-primary">

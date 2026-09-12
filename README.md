@@ -20,6 +20,7 @@
 - **Context-Augmented Generation (CAG)** — every LLM prompt is pre-loaded with the user's profile, calorie targets, RAG chunks, and an approved food list so the model cannot hallucinate out-of-scope items
 - **Intent classification** — lightweight fast model routes each message to the correct pipeline branch before any heavy generation occurs
 - **Email delivery** — accepted meal plans can be sent to the user via SendGrid
+- **PDF download** — any proposed or accepted plan can be downloaded as a structured A4 PDF (server-rendered with ReportLab from the same computed plan the card shows)
 - **Auth** — JWT bearer tokens with email/password registration and Google OAuth 2.0 sign-in
 - **Chat history & plan memory** — conversations and accepted plans are persisted in MongoDB and injected into subsequent turns
 - **Voice input (speech-to-text)** — a mic button transcribes speech in the browser via the Azure Speech SDK (short-lived token from the backend; the key never leaves the server), auto-detecting between the languages the user lists on their profile. No text-to-speech, by design
@@ -255,6 +256,8 @@ The UI will be available at `http://localhost:3000`.
 |--------|------|-------------|
 | `POST` | `/api/plans/accept` | Accept and persist a proposed meal plan; also triggers the SendGrid email |
 | `GET` | `/api/plans/saved` | List previously accepted plans |
+| `POST` | `/api/plans/pdf` | Render a plan (`{"plan_data": <proposed_plan>}`) as a downloadable A4 PDF: targets and verified weekly summary, one table per day with meal subtotals and day totals, daily routine, disclaimer, numbered pages. Server-rendered from the computed plan, so every number matches the card |
+| `GET` | `/api/plans/{plan_id}/pdf` | The same document for a previously accepted plan |
 
 ### Consent
 

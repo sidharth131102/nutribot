@@ -49,6 +49,12 @@ class PlanAcceptRequest(BaseModel):
     plan_summary: str
 
 
+class PlanPdfRequest(BaseModel):
+    """A plan to render -- the same dict the chat response carries in
+    `proposed_plan` (and that an accepted plan stores as `plan_full`)."""
+    plan_data: dict[str, Any]
+
+
 class PlanAcceptResponse(BaseModel):
     status: str
     plan_id: str

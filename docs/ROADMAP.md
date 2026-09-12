@@ -42,6 +42,7 @@ These apply to **every** phase. If a task seems to require weakening one of them
 | 8 | Fine-tuning (optional, only if Phase 7 shows stock models fall short) | ⏭ Skipped — Phase 7 showed no capability gap (both stock models 13/16); the shared misses turned out to be a code/data problem, since fixed | — |
 | — | Profile edit + bot rename (frontend) | ✅ Done | 2026-09-12 |
 | — | Voice input (STT) + per-message multilingual chat + per-user spoken languages | ✅ Done (code + tests); live verification pending an Azure AI services resource | 2026-09-12 |
+| — | Meal-plan PDF download | ✅ Done | 2026-09-12 |
 | 9 | Azure production hardening (full Vercel→Azure migration) | ⬜ Not started | — |
 | — | Frontend UI for remaining backend-only features (export/delete, documents) | ⬜ Not started (consent is now in the profile form) | — |
 
@@ -88,6 +89,9 @@ User request. The profile page was create-only with nothing linking back to it. 
 
 ### Voice input + multilingual chat (done, 2026-09-12; live verification pending)
 User request, scoped to speech-to-text only (TTS explicitly out). Recognition runs in the browser with the Azure Speech SDK on a short-lived token from `GET /api/speech/token`; the key never leaves the server. Multilingual is **translate-at-the-edges** (Azure Translator): message → English → the unchanged pipeline → reply → user's language, decided per message, failing open to English, with plan tables kept verbatim. The user then asked "what about other languages?": the four default locales were a server-wide list bounded by Azure's 4-candidate at-start language identification, so "languages I speak" became a per-user profile field (max 4, one per language, validated server-side) that the token endpoint returns. Needs an "Azure AI services" multi-service resource (one key covers Speech + Translator) for live verification.
+
+### Meal-plan PDF download (done, 2026-09-12)
+User request: "download the generated meal plan as a PDF; the format should be structured and correct." Server-rendered with ReportLab (`backend/tools/pdf_tool.py`, pure) from the same computed plan dict the card shows, so it is correct by construction — no LLM, nothing recomputed. `POST /api/plans/pdf` for whatever the client holds (proposed or accepted), `GET /api/plans/{plan_id}/pdf` for saved plans; a "PDF" button on the plan card. Verified by parsing the output back with pypdf in tests and by rasterising a sample for visual review.
 
 ### Phase 8 — Fine-tuning (not started, conditional)
 Explicitly optional per the original roadmap — only pursue if Phase 7's evaluation shows stock/off-the-shelf models underperforming on this domain in a way fine-tuning would plausibly fix. Not a default next step.
