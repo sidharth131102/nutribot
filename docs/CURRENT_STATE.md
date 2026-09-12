@@ -1,5 +1,7 @@
 # NutriBot — Current State (Phase 0 recon)
 
+> **Doc map**: this file is a detailed, chronological build log — what shipped in each phase, file-by-file, with live-verification notes. For the phase plan and current status at a glance, see `docs/ROADMAP.md`. For a scannable catalog of every significant bug hit and its fix (extracted from this file's narrative into one place), see `docs/ISSUES_AND_FIXES.md`.
+>
 > Ground-truthed against the actual code on 2026-08-02, ahead of the v2 roadmap. Supersedes anything in `README.md` or `.env.example` where they disagree — both had drifted from the real code before this pass (see [Vercel deployment work] for the RAG/dependency corrections already made this session).
 
 ## §2 open items — resolved
@@ -278,6 +280,4 @@ Mongo-backed fixed-window counter (no Redis anywhere in this codebase — an in-
 
 **Live-verified end-to-end (2026-09-11)**: full pipeline traced by hand for the regeneration cycle (no infinite-loop risk, well under LangGraph's recursion limit); `au-01`/`au-02` correctly return the canned deterministic response; a real meal-plan generation was caught by the output guardrail (unsupported precision + diagnostic tone), regenerated, and passed on the second attempt; a real allergen leak in free-text prose (`ade-01`/`ade-02`, peanuts/soy and milk) was caught and safely fell back after the regeneration cap. Final clean harness run: 13/16 gated pass, **zero false-positive guardrail blocks, zero incorrect safety gating** — `allergy_diet_edge_case` and `rag_dependent` (both safety-gated) pass cleanly. Remaining 3 failures are the same pre-existing calorie-drift/clarifying-question stochastic variance characterized earlier this session, unrelated to this phase. 193 total tests passing.
 
-**Not yet done**: rate-limit 429s and LangSmith trace nesting not yet verified against real HTTP traffic (unit-tested only); no LangSmith account provisioned yet (user action required, same pattern as prior Azure resource setup steps); no frontend UI changes (this phase is entirely backend).
-
-None of these three remaining issues were chased further in this session — flagging them here as the next things to pick up rather than declaring the migration fully "done, no gaps."
+**Not yet done**: rate-limit 429s and LangSmith trace nesting not yet verified against real HTTP traffic (unit-tested only); no LangSmith account provisioned yet (user action required, same pattern as prior Azure resource setup steps); no frontend UI changes (this phase is entirely backend). These three are flagged as the next things to pick up, not chased further in this session.

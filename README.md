@@ -2,6 +2,8 @@
 
 **NutriBot** is a production-grade AI nutrition assistant that combines a 10-node LangGraph pipeline (with runtime input/output safety guardrails) with a typed memory system, deterministic calorie calculations, RAG-powered nutrition knowledge, and a personalized food database to generate safe, medically-aware meal plans via a conversational interface.
 
+> **Picking up this project for the first time (including as another coding agent)?** Start with `docs/ROADMAP.md` (the phase-by-phase plan and current status), then `docs/CURRENT_STATE.md` (detailed build log — what shipped, file-by-file, per phase) and `docs/ISSUES_AND_FIXES.md` (every significant bug hit so far and how it was fixed, with cross-cutting patterns worth knowing before making changes).
+
 ---
 
 ## Features
