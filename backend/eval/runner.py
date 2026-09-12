@@ -30,6 +30,7 @@ from backend.eval.models import CaseResult, DeterministicResult
 from backend.eval.pipeline_runner import run_case
 from backend.eval.scorers.deepeval_scorer import score_deepeval
 from backend.eval.scorers.deterministic import score_deterministic
+from backend.llm.base import GenerationConfig, Message
 from backend.llm.factory import get_provider
 
 logging.basicConfig(level=logging.WARNING)
@@ -105,6 +106,34 @@ async def _run_all() -> list[CaseResult]:
     return results
 
 
+async def _probe_challenger() -> None:
+    """One tiny live call so a configured-but-unreachable challenger fails in
+    seconds, BEFORE the expensive primary arm runs.
+
+    get_provider() alone only validates config (a missing deployment name
+    raises immediately) -- it never touches the network, so a deployment
+    that is configured but doesn't exist on the resource would otherwise
+    only surface as 16 ERROR rows after the primary arm had already run in
+    full. Found the hard way when the challenger deployment hadn't been
+    created yet.
+    """
+    provider = get_provider(CHALLENGER_ARM)
+    settings = get_settings()
+    try:
+        await provider.generate(
+            [Message(role="user", content="ping")],
+            GenerationConfig(profile="full", temperature=0, max_tokens=5),
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"Challenger provider {CHALLENGER_ARM!r} (deployment "
+            f"{settings.azure_openai_challenger_deployment_full!r}) is configured but not "
+            f"reachable -- aborting before the primary arm runs. Does the deployment exist on "
+            f"the resource? (Azure reports DeploymentNotFound for a few minutes after creation.) "
+            f"Underlying error: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 async def _run_compare() -> dict[str, list[CaseResult]]:
     """Run the golden set once per arm by swapping the active provider.
 
@@ -116,8 +145,9 @@ async def _run_compare() -> dict[str, list[CaseResult]]:
     """
     settings = get_settings()
     original_provider = settings.llm_provider
-    # Fail fast on a misconfigured challenger instead of producing 16 ERROR rows.
-    get_provider(CHALLENGER_ARM)
+    # Fail fast: config errors raise inside get_provider, reachability errors
+    # raise from the probe -- either way before a single case (or dollar) is spent.
+    await _probe_challenger()
 
     results: dict[str, list[CaseResult]] = {}
     try:
