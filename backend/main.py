@@ -37,6 +37,7 @@ from backend.models.medical_document import (
     MedicalDocumentSummary,
 )
 from backend.models.plan import PlanAcceptRequest, PlanAcceptResponse
+from backend.models.speech import SpeechTokenResponse
 from backend.models.user import (
     LoginRequest,
     ProfileCreateRequest,
@@ -47,6 +48,8 @@ from backend.models.user import (
 )
 from backend.observability import configure_logging, configure_tracing, new_trace_id, trace_id_var
 from backend.security.rate_limit import chat_message_rate_limit, login_rate_limit, register_rate_limit
+from backend.speech import multilingual
+from backend.speech import token as speech_token
 
 MEDICAL_CONSENT_TYPE = "medical_data_processing"
 
@@ -324,29 +327,75 @@ async def chat_message(
             detail="Profile not complete. Please complete your profile first.",
         )
 
+    # Translate-at-the-edges (backend/speech/multilingual.py): the pipeline
+    # only ever sees English; the reply goes back in the message's language.
+    settings = get_settings()
+    inbound = await multilingual.inbound(settings, payload.message, payload.language)
+
     result = await run_chat_pipeline(
         user_id=user_id,
         session_id=payload.session_id,
-        user_message=payload.message,
+        user_message=inbound.english_text,
     )
+    response_en = result.get("response", "")
+    response_out = await multilingual.outbound(settings, result, inbound.language)
 
-    # Persist messages to MongoDB
+    # Persist messages to MongoDB: `content` is what the user saw (their own
+    # language), `content_en` is what the pipeline processed -- the context
+    # builder feeds `content_en` back into later turns.
     now = datetime.utcnow().isoformat()
     await repo.append_messages(
         payload.session_id,
         [
-            {"role": "user", "content": payload.message, "timestamp": now},
-            {"role": "assistant", "content": result.get("response", ""), "timestamp": now},
+            {
+                "role": "user",
+                "content": payload.message,
+                "content_en": inbound.english_text,
+                "language": inbound.language,
+                "timestamp": now,
+            },
+            {
+                "role": "assistant",
+                "content": response_out,
+                "content_en": response_en,
+                "language": inbound.language,
+                "timestamp": now,
+            },
         ],
     )
 
     return ChatResponse(
-        response=result.get("response", ""),
+        response=response_out,
         intent=result.get("intent", "GENERAL_CONVERSATION"),
         plan_proposed=result.get("plan_proposed", False),
         proposed_plan=result.get("proposed_plan"),
         session_id=payload.session_id,
         rag_sources=result.get("rag_sources", []),
+        language=inbound.language,
+        message_english=inbound.english_text if inbound.translated else None,
+    )
+
+
+# ── /api/speech ───────────────────────────────────────────────────────────────
+
+@app.get("/api/speech/token", response_model=SpeechTokenResponse)
+async def get_speech_token(_: str = Depends(get_current_user_id)):
+    """Short-lived Azure Speech token for browser-side recognition. The
+    subscription key never leaves the server; the browser gets a 10-minute
+    token and the candidate languages to auto-detect between."""
+    settings = get_settings()
+    if not speech_token.is_configured(settings):
+        raise HTTPException(status_code=503, detail="Voice input is not configured on this server.")
+    try:
+        issued = await speech_token.issue_token(settings)
+    except Exception as exc:
+        logger.exception("Speech token request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not obtain a speech token from Azure.") from exc
+    return SpeechTokenResponse(
+        token=issued.token,
+        region=issued.region,
+        expires_in_seconds=issued.expires_in_seconds,
+        languages=speech_token.recognition_languages(settings),
     )
 
 

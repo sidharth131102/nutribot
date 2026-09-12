@@ -28,11 +28,16 @@ class GenerationContext(BaseModel):
 
 
 def format_history(messages: list[dict]) -> list[Message]:
-    """Convert stored chat messages to provider-agnostic Message objects."""
+    """Convert stored chat messages to provider-agnostic Message objects.
+
+    Prefers `content_en` (the English form recorded by the multilingual
+    layer) over `content` (what the user saw, possibly Hindi/French/...):
+    the pipeline runs in English, so its conversation context must too.
+    """
     formatted: list[Message] = []
     for msg in messages:
         role = msg.get("role", "user")
-        content = msg.get("content", "")
+        content = msg.get("content_en") or msg.get("content", "")
         formatted.append(Message(role="user" if role == "user" else "assistant", content=content))
     return formatted
 

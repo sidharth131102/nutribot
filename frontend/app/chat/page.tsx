@@ -13,6 +13,7 @@ import {
   type ChatSession,
   type RagSource,
 } from "@/src/services/api";
+import { isVoiceAvailable, recognizeOnce, SpeechError } from "@/src/services/speech";
 import ChatBubble from "@/src/components/ChatBubble";
 import MealPlanCard from "@/src/components/MealPlanCard";
 import AcceptModifyPanel from "@/src/components/AcceptModifyPanel";
@@ -24,7 +25,23 @@ type MessageEntry = ChatMessage & {
   planAccepted?: boolean;
   planConfirmation?: string;
   ragSources?: RagSource[];
+  /** Spoken-input locale ("hi-IN") for a user message that came from the mic. */
+  spokenLocale?: string;
+  /** What the assistant understood, when the message was translated. */
+  understoodAs?: string | null;
 };
+
+const LOCALE_LABELS: Record<string, string> = {
+  en: "English", hi: "Hindi", ml: "Malayalam", ta: "Tamil", te: "Telugu",
+  kn: "Kannada", mr: "Marathi", bn: "Bengali", gu: "Gujarati", fr: "French",
+  es: "Spanish", de: "German", ar: "Arabic",
+};
+
+function languageLabel(locale?: string | null): string | undefined {
+  if (!locale) return undefined;
+  const code = locale.split("-")[0].toLowerCase();
+  return LOCALE_LABELS[code] ?? locale;
+}
 
 function formatSessionDate(iso: string): string {
   const d = new Date(iso);
@@ -51,6 +68,15 @@ export default function ChatPage() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Voice input. `voiceAvailable` is null until the server has been asked
+  // whether it's configured; the mic button only renders once it says yes.
+  const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
+  const [listening, setListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  // Locale of the transcript currently sitting in the input box, if it came
+  // from the mic. Cleared when the user edits the text or sends it.
+  const [spokenLocale, setSpokenLocale] = useState<string | undefined>(undefined);
+
   // Auth guard
   useEffect(() => {
     const token = localStorage.getItem("nutribot_token");
@@ -74,6 +100,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (user) refreshSessions();
   }, [user, refreshSessions]);
+
+  useEffect(() => {
+    if (user) isVoiceAvailable().then(setVoiceAvailable);
+  }, [user]);
 
   // Load messages for the active session
   const loadSession = useCallback(async (sessionId: string, currentUser: AuthUser) => {
@@ -128,18 +158,28 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || loading || !user) return;
 
+    const locale = spokenLocale;
+    const userMsgId = uuidv4();
     const userMsg: MessageEntry = {
-      id: uuidv4(),
+      id: userMsgId,
       role: "user",
       content: text,
       timestamp: new Date().toISOString(),
+      spokenLocale: locale,
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
+    setSpokenLocale(undefined);
+    setVoiceError(null);
     setLoading(true);
 
     try {
-      const res = await sendMessage(user.id, activeSessionId, text);
+      const res = await sendMessage(user.id, activeSessionId, text, locale);
+      if (res.message_english) {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === userMsgId ? { ...m, understoodAs: res.message_english } : m))
+        );
+      }
       const botMsg: MessageEntry = {
         id: uuidv4(),
         role: "assistant",
@@ -167,6 +207,29 @@ export default function ChatPage() {
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  async function handleVoice() {
+    if (listening || loading) return;
+    setVoiceError(null);
+    setListening(true);
+    try {
+      const result = await recognizeOnce();
+      // Append to whatever is already typed so a user can dictate in parts;
+      // they review the transcript before sending.
+      setInput((prev) => (prev.trim() ? `${prev.trim()} ${result.text}` : result.text));
+      setSpokenLocale(result.locale);
+      inputRef.current?.focus();
+    } catch (err) {
+      if (err instanceof SpeechError) {
+        setVoiceError(err.message);
+        if (err.code === "not_configured") setVoiceAvailable(false);
+      } else {
+        setVoiceError("Voice input failed. Please try again.");
+      }
+    } finally {
+      setListening(false);
+    }
   }
 
   async function handleAcceptPlan(msgId: string, plan: Record<string, unknown>) {
@@ -344,6 +407,8 @@ export default function ChatPage() {
                     botName={user.bot_name}
                     timestamp={msg.timestamp}
                     ragSources={msg.ragSources}
+                    spokenLanguage={languageLabel(msg.spokenLocale)}
+                    understoodAs={msg.understoodAs ?? undefined}
                   />
                   {msg.planProposed && msg.proposedPlan && (
                     <div className="ml-10 mt-2 mb-2">
@@ -400,13 +465,43 @@ export default function ChatPage() {
             ))}
           </div>
 
+          {(voiceError || spokenLocale) && (
+            <div className="flex items-center gap-2 mb-2 text-xs">
+              {voiceError ? (
+                <span className="text-red-400">{voiceError}</span>
+              ) : (
+                <span className="text-muted">
+                  🎤 Heard in <span className="text-primary">{languageLabel(spokenLocale)}</span> — review, then send
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-3 items-end">
+            {voiceAvailable && (
+              <button
+                onClick={handleVoice}
+                disabled={loading}
+                title={listening ? "Listening…" : "Speak your message"}
+                aria-label={listening ? "Listening" : "Speak your message"}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 border transition-colors
+                  ${listening
+                    ? "bg-red-500/20 border-red-500 text-red-400 animate-pulse"
+                    : "bg-panel border-border text-muted hover:text-primary hover:border-primary"}
+                  disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0M12 17v4m-4 0h8" />
+                </svg>
+              </button>
+            )}
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => { setInput(e.target.value); if (spokenLocale) setSpokenLocale(undefined); }}
               onKeyDown={handleKeyDown}
-              placeholder={`Message ${user.bot_name}…`}
+              placeholder={listening ? "Listening…" : `Message ${user.bot_name}…`}
               rows={1}
               className="flex-1 bg-panel border border-border rounded-2xl px-4 py-3 text-text text-sm
                 placeholder:text-muted focus:outline-none focus:border-primary transition-colors resize-none

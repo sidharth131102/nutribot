@@ -407,13 +407,17 @@ async def _plan_turn(state: NutriBotState, context: GenerationContext, intent: s
         logger.exception("Meal plan prose call failed: %s", exc)
         prose = f"{context.user_name}, here is your plan for the week."
 
-    response = f"{prose.strip()}\n\n{plan_markdown}\n\n{ACCEPT_PROMPT}"
+    prose = prose.strip()
+    response = f"{prose}\n\n{plan_markdown}\n\n{ACCEPT_PROMPT}"
     return {
         **state,
         "response": response,
         "plan_proposed": True,
         "proposed_plan": plan,
         "plan_build_report": report.model_dump(),
+        # Recorded separately so the multilingual layer can translate the
+        # prose and the accept prompt while leaving the table untouched.
+        "response_parts": {"prose": prose, "plan_markdown": plan_markdown, "accept_prompt": ACCEPT_PROMPT},
     }
 
 

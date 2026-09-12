@@ -47,6 +47,25 @@ class Settings(BaseSettings):
     azure_doc_intelligence_endpoint: str = ""
     azure_doc_intelligence_api_key: str = ""
 
+    # Azure Speech (STT) + Translator -- multilingual voice input.
+    # One "Azure AI services" multi-service resource covers both with a
+    # single key/region; leave the translator fields empty to reuse the
+    # speech key/region. Empty speech key = voice input disabled (the token
+    # endpoint returns 503, the mic button hides). Empty translator key AND
+    # empty speech key = every message is treated as English, no translation.
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""              # e.g. "centralindia", "eastus"
+    azure_translator_key: str = ""
+    azure_translator_region: str = ""
+    azure_translator_endpoint: str = "https://api.cognitive.microsofttranslator.com"
+    # Candidate spoken languages for auto-detection (BCP-47, comma-separated).
+    # At-start language identification supports at most 4; one locale per
+    # language (en-IN and en-US together is rejected by the service).
+    speech_recognition_languages: str = "en-IN,hi-IN,ml-IN,fr-FR"
+    # Master switch for translate-at-the-edges. Off = pipeline sees the raw
+    # message and replies in English regardless of the user's language.
+    multilingual_enabled: bool = True
+
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"
     mongodb_db_name: str = "nutribot"

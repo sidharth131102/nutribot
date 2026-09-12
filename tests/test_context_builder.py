@@ -73,3 +73,16 @@ def test_episodic_context_formats_plan_accepted():
 def test_episodic_context_empty_when_no_events():
     context = build_context(_base_state(recent_events=[]))
     assert context.episodic_context == ""
+
+
+def test_format_history_prefers_english_form_of_translated_messages():
+    """The multilingual layer stores `content` (what the user saw, e.g. Hindi)
+    and `content_en` (what the pipeline processed); history fed back into the
+    English-only pipeline must use the English form."""
+    context = build_context(_base_state(chat_history=[
+        {"role": "user", "content": "मुझे एक मील प्लान दो", "content_en": "Give me a meal plan", "language": "hi"},
+        {"role": "assistant", "content": "यह रहा आपका प्लान", "content_en": "Here is your plan", "language": "hi"},
+        {"role": "user", "content": "thanks"},  # pre-multilingual message, no content_en
+    ]))
+    assert [m.content for m in context.chat_history] == ["Give me a meal plan", "Here is your plan", "thanks"]
+    assert [m.role for m in context.chat_history] == ["user", "assistant", "user"]

@@ -22,6 +22,9 @@ class ChatRequest(BaseModel):
     user_id: str
     message: str
     session_id: str
+    # BCP-47 locale the browser's speech recognizer detected ("hi-IN") when
+    # the message came from the microphone; None for typed text (auto-detected).
+    language: Optional[str] = Field(default=None, max_length=16)
 
 
 class ChatResponse(BaseModel):
@@ -31,6 +34,11 @@ class ChatResponse(BaseModel):
     proposed_plan: Optional[dict[str, Any]] = None
     session_id: str
     rag_sources: list[dict[str, Any]] = Field(default_factory=list)
+    # Language the response is written in (Translator code: "en", "hi", "ml", "fr").
+    language: str = "en"
+    # The English the pipeline actually processed, when the message was
+    # translated -- lets the UI show "understood as: ..." for transparency.
+    message_english: Optional[str] = None
 
 
 class HistoryResponse(BaseModel):

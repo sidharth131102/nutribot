@@ -10,6 +10,10 @@ type Props = {
   botName?: string;
   timestamp?: string;
   ragSources?: RagSource[];
+  /** Human-readable language the user spoke this message in, if via the mic. */
+  spokenLanguage?: string;
+  /** The English the assistant processed, when the message was translated. */
+  understoodAs?: string;
 };
 
 function sourceName(raw: string): string {
@@ -26,10 +30,15 @@ const CONDITION_COLORS: Record<string, string> = {
   general:     "bg-emerald-900/30 text-emerald-300 border-emerald-700",
 };
 
-export default function ChatBubble({ role, content, botName = "Nova", timestamp, ragSources }: Props) {
+export default function ChatBubble({
+  role, content, botName = "Nova", timestamp, ragSources, spokenLanguage, understoodAs,
+}: Props) {
   const isUser = role === "user";
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const hasSources = !isUser && ragSources && ragSources.length > 0;
+  const meta = [spokenLanguage ? `🎤 ${spokenLanguage}` : null, understoodAs ? `understood as: “${understoodAs}”` : null]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className={`flex items-end gap-2 mb-4 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -63,6 +72,10 @@ export default function ChatBubble({ role, content, botName = "Nova", timestamp,
             </p>
           )}
         </div>
+
+        {isUser && meta && (
+          <p className="text-xs text-muted text-right mr-1" title={understoodAs}>{meta}</p>
+        )}
 
         {/* RAG sources pill */}
         {hasSources && (

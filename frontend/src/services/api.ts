@@ -148,17 +148,36 @@ export type ChatResponse = {
   proposed_plan: Record<string, unknown> | null;
   session_id: string;
   rag_sources: RagSource[];
+  /** Language the reply is written in (Translator code: "en", "hi", "ml", "fr"). */
+  language: string;
+  /** The English the pipeline processed, when the message was translated. */
+  message_english: string | null;
 };
 
 export async function sendMessage(
   userId: string,
   sessionId: string,
-  message: string
+  message: string,
+  /** BCP-47 locale from speech recognition ("hi-IN"); omit for typed text. */
+  language?: string
 ): Promise<ChatResponse> {
   return request<ChatResponse>("/api/chat/message", {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, session_id: sessionId, message }),
+    body: JSON.stringify({ user_id: userId, session_id: sessionId, message, language: language ?? null }),
   });
+}
+
+// ── Speech ─────────────────────────────────────────────────────────────────────
+
+export type SpeechTokenResponse = {
+  token: string;
+  region: string;
+  expires_in_seconds: number;
+  languages: string[];
+};
+
+export async function getSpeechToken(): Promise<SpeechTokenResponse> {
+  return request<SpeechTokenResponse>("/api/speech/token");
 }
 
 export async function getChatHistory(sessionId: string): Promise<{ session_id: string; messages: ChatMessage[] }> {

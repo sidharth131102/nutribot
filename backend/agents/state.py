@@ -37,6 +37,9 @@ class NutriBotState(TypedDict, total=False):
     plan_proposed: bool
     proposed_plan: Optional[dict[str, Any]]
     plan_build_report: Optional[dict[str, Any]]  # plan_builder.PlanBuildReport (dropped/rebalanced/off-target)
+    # {"prose", "plan_markdown", "accept_prompt"} for a plan turn -- lets the
+    # multilingual layer translate the prose while keeping the table verbatim.
+    response_parts: Optional[dict[str, str]]
 
     # ── Memory Retrieval / Extraction (Phase 3) ───────────────────────────────
     relevant_memories: list[dict[str, Any]]  # top-N active long-term facts
