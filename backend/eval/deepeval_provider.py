@@ -6,6 +6,13 @@ through the existing LLMProvider abstraction (get_provider()) instead,
 keeping invariant 6 intact (generation stays behind one provider interface)
 and avoiding a stray non-Azure API key requirement.
 
+The judge is PINNED to settings.eval_judge_provider (default "azure_openai"),
+not to the active settings.llm_provider (Phase 7). In `--compare` mode the
+active provider is swapped to the challenger for one arm; if the judge
+followed it, the challenger would be judging its own output -- a confound
+that would make the comparison meaningless. A fixed judge across both arms
+is what makes the scores comparable.
+
 Confined entirely to backend/eval/ -- nothing in backend/agents/ or
 backend/guardrails/ imports deepeval or this file.
 """
@@ -29,7 +36,7 @@ class NutriBotDeepEvalLLM(DeepEvalBaseLLM):
         # budget was observed to silently return empty/truncated text here,
         # the same reasoning-token-overhead failure mode hit repeatedly
         # elsewhere in this codebase with small max_tokens on a reasoning model.
-        result = await get_provider().generate(
+        result = await get_provider(get_settings().eval_judge_provider).generate(
             messages=[Message(role="user", content=prompt)],
             config=GenerationConfig(profile="full", temperature=0, max_tokens=4096),
         )
@@ -43,4 +50,4 @@ class NutriBotDeepEvalLLM(DeepEvalBaseLLM):
         return asyncio.run(self.a_generate(prompt))
 
     def get_model_name(self) -> str:
-        return f"nutribot-{get_settings().llm_provider}"
+        return f"nutribot-{get_settings().eval_judge_provider}"

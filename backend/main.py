@@ -67,11 +67,16 @@ def _validate_production_secrets(settings: Settings) -> None:
         problems.append("MONGODB_URI points at localhost in production")
     if not settings.groq_api_key:
         problems.append("GROQ_API_KEY is unset")
-    if settings.llm_provider == "azure_openai":
+    if settings.llm_provider.startswith("azure_openai"):
         if not settings.azure_openai_api_key:
             problems.append("AZURE_OPENAI_API_KEY is unset")
         if not settings.azure_openai_endpoint:
             problems.append("AZURE_OPENAI_ENDPOINT is unset")
+    if settings.llm_provider == "azure_openai_challenger":
+        if not settings.azure_openai_challenger_deployment_full:
+            problems.append("AZURE_OPENAI_CHALLENGER_DEPLOYMENT_FULL is unset")
+        if not settings.azure_openai_challenger_deployment_fast:
+            problems.append("AZURE_OPENAI_CHALLENGER_DEPLOYMENT_FAST is unset")
     if not settings.pinecone_api_key:
         problems.append("PINECONE_API_KEY is unset")
     if not settings.azure_storage_connection_string:
