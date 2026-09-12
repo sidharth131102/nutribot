@@ -373,6 +373,11 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `AZURE_OPENAI_API_VERSION` | `2024-10-21` | Azure OpenAI REST API version |
 | `AZURE_OPENAI_DEPLOYMENT_FULL` | `gpt-5-mini` | Deployment name used for meal plan generation ("full" profile) |
 | `AZURE_OPENAI_DEPLOYMENT_FAST` | `gpt-5-mini` | Deployment name used for intent classification ("fast" profile) |
+| `AZURE_OPENAI_REASONING_MODEL` | `true` | `true` for reasoning models (gpt-5 family: `reasoning_effort`, no `temperature`); set `false` when promoting a classic chat model like gpt-4.1 |
+| `AZURE_OPENAI_CHALLENGER_DEPLOYMENT_FULL` | — | Challenger deployment on the same resource, "full" profile (Phase 7; eval-only until promoted) |
+| `AZURE_OPENAI_CHALLENGER_DEPLOYMENT_FAST` | — | Challenger deployment, "fast" profile |
+| `AZURE_OPENAI_CHALLENGER_REASONING_MODEL` | `false` | Same flag as above, for the challenger |
+| `EVAL_JUDGE_PROVIDER` | `azure_openai` | Provider the DeepEval judge is pinned to — deliberately not `LLM_PROVIDER`, so `--compare` arms share one judge |
 | `AZURE_STORAGE_CONNECTION_STRING` | — | Azure Blob Storage connection string (medical document uploads) |
 | `AZURE_STORAGE_CONTAINER` | `medical-documents` | Blob container name |
 | `AZURE_DOC_INTELLIGENCE_ENDPOINT` | — | Azure AI Document Intelligence resource endpoint |
@@ -437,6 +442,14 @@ uv run python -m backend.eval.runner
 ```
 
 Scores each case both deterministically and via [DeepEval](https://github.com/confident-ai/deepeval) metrics (faithfulness, answer relevancy, and two custom rubrics for medical-safety compliance and completeness) — DeepEval is a dev-only dependency, never installed in production, and its judge calls route through the same `LLMProvider` abstraction as everything else (no separate API key). Judge results gate the exit code for safety-relevant categories (`rag_dependent`, `medical_context`, `allergy_diet_edge_case`); elsewhere they're informational.
+
+To evaluate a challenger model against the primary (Phase 7):
+
+```bash
+uv run python -m backend.eval.runner --compare
+```
+
+Runs the same golden set on `azure_openai` and `azure_openai_challenger` with the judge pinned to one provider, prints a side-by-side table, writes `eval_compare_results.json`, and exits 0 iff the challenger is promotable (matches or beats the primary's gated-pass count, no safety-gated regressions, no pipeline errors). It probes the challenger first so a missing deployment fails in seconds. Single runs are noisy — run it 2-3 times before promoting. Promotion is a config flip: point `AZURE_OPENAI_DEPLOYMENT_FULL/FAST` at the challenger deployment and set `AZURE_OPENAI_REASONING_MODEL=false` (for a classic model like gpt-4.1); no code changes.
 
 ---
 

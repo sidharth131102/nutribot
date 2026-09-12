@@ -221,9 +221,24 @@ The user explicitly interrupted a live "run → find bug → fix → run again" 
 
 ---
 
+## Phase 7 — challenger model, eval-gated (2026-09-12)
+
+### 37. The eval judge would have floated with the active provider (caught in design, before it shipped)
+**Symptom**: (design-time) — `deepeval_provider.py` resolved its judge model through the same zero-arg `get_provider()` every agent uses. In the new `--compare` mode, the active provider is swapped to the challenger for one arm — so the challenger arm would have had **gpt-4.1 judging gpt-4.1's own output** while the primary arm was judged by gpt-5-mini. Two arms scored by different judges can't be compared.
+**Root cause**: the judge's provider was an accident of the singleton design (Phase 6), never a deliberate choice.
+**Fix**: a new `eval_judge_provider` setting (default `azure_openai`) and `get_provider(name)`; the judge is pinned to it in both arms. Unit-tested: the judge resolves `azure_openai` even when `llm_provider="azure_openai_challenger"`.
+
+### 38. A configured-but-nonexistent challenger deployment didn't fail fast
+**Symptom**: the first live smoke call against the challenger entry returned Azure's `DeploymentNotFound` (the deployment hadn't been created yet) — but `--compare`'s up-front check only called `get_provider()`, which validates *config* (deployment name present) and never touches the network. As written, `--compare` would have run the entire expensive primary arm (16 cases, real API cost) and only *then* produced 16 challenger ERROR rows.
+**Fix**: `_probe_challenger()` — one 5-token live call before the primary arm runs, raising a clear error naming the deployment and hinting that Azure reports `DeploymentNotFound` for a few minutes after creation. Unit-tested that the probe aborts before any arm runs and that `llm_provider` is restored in the `finally`.
+
 ## Cross-cutting patterns worth knowing before touching this codebase again
 
 - **Reasoning models (Groq's `gpt-oss` family, Azure's `gpt-5` family) silently return empty or truncated text when `max_tokens` is too tight relative to hidden chain-of-thought consumption.** This exact failure mode has recurred three times (#8, #20, #31) across two different providers and three different call sites. If a call to `get_provider().generate(...)` (or the DeepEval wrapper) ever comes back empty/unparseable, check `reasoning_effort` and `max_tokens` first before assuming a logic bug.
 - **Never trust an LLM client library's default timeout.** #22 (a multi-hour hang) is the reason every LLM call in this codebase sets an explicit `timeout`/`max_retries`.
 - **Substring matching on safety-relevant text (allergens, keywords) is a recurring bug class**, not a one-off — it has bitten this codebase three separate times (#13's food-name matching, #29's allergen-vs-display-name check, #34's allergen-in-prose scan). Any new code that checks free text against a list of short keywords should default to word-boundary matching, not bare `in` substring checks.
 - **On Windows, verify a "fresh" local server actually is fresh** (#16) — stale `uvicorn --reload` processes surviving a `pkill` have caused real, time-costly debugging confusion more than once.
+- **Before an expensive multi-call run, probe reachability, not just configuration** (#38) — "the setting is present" and "the thing it names exists and answers" are different checks, and only the second one prevents burning a full run's worth of API cost on a typo or a not-yet-created resource. A single tiny live call up front is worth it.
+- **When comparing two models, hold everything else constant — including the judge** (#37). Any LLM-as-judge that resolves through the same switch as the thing under test will silently follow it.
+- **On Windows, anything that prints LLM-authored text needs stdout reconfigured to UTF-8** (#36) — the runner has the fix, but an ad-hoc analysis script printing judge notes from `eval_compare_results.json` crashed on a `≈` character during Phase 7 the same way the runner did in Phase 6. Judge notes routinely contain characters outside cp1252; treat `sys.stdout.reconfigure(encoding="utf-8", errors="replace")` as boilerplate for any such script.
+- **Don't pipe a long background run through `grep`** — it block-buffers to a file, hiding every progress line until exit; Phase 7's first `--compare` run looked like a one-hour hang for that reason alone. Write raw output and filter when reading.

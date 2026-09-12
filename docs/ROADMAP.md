@@ -37,8 +37,8 @@ These apply to **every** phase. If a task seems to require weakening one of them
 | 4 | Medical document pipeline | ✅ Done | 2026-09-08 |
 | 5 | RAG 2.0: hybrid search + reranking | ✅ Done | 2026-09-08 |
 | 6 | Guardrails + rate limiting + observability | ✅ Done | 2026-09-11 |
-| 7 | Azure AI Foundry challenger model (eval-gated) | ⬜ Not started | — |
-| 8 | Fine-tuning (optional, only if Phase 7 shows stock models fall short) | ⬜ Not started | — |
+| 7 | Azure AI Foundry challenger model (eval-gated) | ✅ Done — compared live: parity (13/16 vs 13/16), **not promoted** | 2026-09-12 |
+| 8 | Fine-tuning (optional, only if Phase 7 shows stock models fall short) | ⏭ Skipped — Phase 7 showed no capability gap (both stock models 13/16; misses are calorie-precision variance) | — |
 | 9 | Azure production hardening (full Vercel→Azure migration) | ⬜ Not started | — |
 | — | Frontend UI for Phase 2/4 features (consent/export/delete/documents) | ⬜ Not started | — |
 
@@ -74,8 +74,8 @@ Retrieval was pure Pinecone semantic search with no keyword component and no rer
 ### Phase 6 — Guardrails, rate limiting, LangSmith, DeepEval (done)
 The user explicitly wanted production-grade behavior, not just eval-time quality checks. Runtime input guardrail (blocks medical emergencies/medication misuse/self-harm with a fixed vetted response, never LLM-authored safety text) and output guardrail (allergen-in-prose scan + diagnosis-language/fabricated-claims check, one automatic regeneration attempt, safe fallback if still unsafe) — both live on every real chat message, not eval-only. Mongo-backed rate limiting (no Redis exists in this codebase). Opt-in LangSmith tracing. The eval harness's judge is now real DeepEval metrics (replacing a hand-rolled stub), gating the harness's exit code for safety-relevant categories. See `docs/ISSUES_AND_FIXES.md` for 6 bugs found during a deliberate full-code-review pass before the final live verification.
 
-### Phase 7 — Azure AI Foundry challenger model (not started)
-Per the original roadmap: introduce a second, Azure-AI-Foundry-hosted model as a "challenger" to the current primary model, evaluated via the Phase 1b/6 eval harness before being promoted. Open decisions not yet made (flagged since Phase 0): Foundry serverless vs. dedicated hosting, and how a challenger model plugs into the existing provider-registry pattern (`backend/llm/factory.py`) — likely a third registry entry, consistent with how Azure OpenAI was added alongside Groq.
+### Phase 7 — Azure AI Foundry challenger model (done; live comparison pending)
+The challenger is **gpt-4.1 as a second deployment on the existing Azure OpenAI resource** — user decision, which resolves the long-open "Foundry serverless-vs-dedicated" question as "neither: a deployment on the resource we already have, no separate Foundry hosting." Implemented exactly as the provider abstraction was designed to allow: `AzureOpenAIProvider` is now parameterized (deployment names, a `reasoning_model` flag, a provider name) so one class is registered twice in `backend/llm/factory.py` — `azure_openai` (primary) and `azure_openai_challenger`. `get_provider(name)` gained an explicit-name form so the eval judge can be **pinned** to one fixed provider across both arms (otherwise the challenger arm would judge its own output). `python -m backend.eval.runner --compare` runs the 16 golden cases on both arms, prints a side-by-side report, and emits a `promotable` verdict (challenger must match or beat the primary's gated-pass count with no safety-gated regressions and no pipeline errors). Promotion is a config flip (`AZURE_OPENAI_DEPLOYMENT_FULL/FAST` → the challenger deployment, `AZURE_OPENAI_REASONING_MODEL=false`), no traffic-splitting. **Outcome**: the live `--compare` run came back **parity** — gpt-5-mini-1 13/16, gpt-4.1-1 13/16, zero safety-gated regressions, zero errors, verdict PROMOTABLE — and the decision was **not to promote**: parity inside the known noise band at roughly 4-8× the per-token list price is not a promotion case. The gate worked in the "don't switch" direction, which is a legitimate outcome of an eval-gated phase. The deployment stays provisioned (pay-per-call, no idle cost) for future comparisons. Full scorecard in `docs/CURRENT_STATE.md`.
 
 ### Phase 8 — Fine-tuning (not started, conditional)
 Explicitly optional per the original roadmap — only pursue if Phase 7's evaluation shows stock/off-the-shelf models underperforming on this domain in a way fine-tuning would plausibly fix. Not a default next step.
@@ -86,7 +86,7 @@ The full Vercel → Azure migration: Azure Container Apps (backend), Azure Stati
 ## What's next
 
 Two reasonable next steps, not yet decided between:
-1. **Phase 7** (Azure AI Foundry challenger model) — continuing the roadmap's numbered sequence.
+1. **Phase 9** (the Vercel → Azure migration: Container Apps + Static Web Apps + Key Vault). Phase 8 is skipped — Phase 7's comparison showed both stock models at parity with no capability gap, which is exactly the condition under which the roadmap says fine-tuning isn't warranted.
 2. **A frontend UI** for the several backend-only features that have accumulated across Phases 2, 4, 5, and 6 (consent management, data export/delete, medical document upload/list/delete) — none of these have any UI yet, by deliberate scoping decision at the time, but the gap is now fairly large.
 
 Check with the user rather than assuming which one they want.
@@ -95,6 +95,6 @@ Check with the user rather than assuming which one they want.
 
 - Judge coverage thresholds — **resolved in Phase 6** (DeepEval gates on safety-relevant categories).
 - Reranker model/placement — **resolved in Phase 5** (LLM-based via the existing provider, in-process BM25 fusion).
-- Foundry serverless-vs-dedicated hosting — still open, Phase 7's job.
+- Foundry serverless-vs-dedicated hosting — **resolved in Phase 7** (neither: the challenger is a second deployment on the existing Azure OpenAI resource).
 - Data retention windows — partially resolved (90-day TTL on `access_audit`, per-user hard delete via `DELETE /api/user/account`); no broader retention policy beyond that has been decided.
 - RAG-mode disclosure (telling the user when a response is/isn't grounded in retrieved clinical content) — not yet addressed by any phase.
