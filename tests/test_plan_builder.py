@@ -218,3 +218,39 @@ def test_markdown_lists_every_item_with_final_quantities_and_totals():
     assert "Lunch (465 kcal): paneer 100g, whole wheat roti 80g" in text
     assert "Mid-Morning Snack" not in text  # empty meals are skipped
     assert "**Daily routine:** Wake 7AM" in text
+
+
+# ── macro honesty: averages + summary line ──────────────────────────────────
+
+def test_plan_averages_and_summary_flag_a_protein_shortfall():
+    # 60g oats (228 kcal, 8g P) + 100g paneer (265 kcal, 18g P) = 493 kcal, 26g P
+    selection = _selection([("Breakfast", [{"food": "oats", "grams": 60}, {"food": "paneer", "grams": 100}])], days=2)
+    plan, _ = build_plan(selection, FOODS, {"goal_calories": 493.0, "protein_g": 60.0, "carbs_g": 43.0, "fat_g": 24.0})
+
+    from backend.agents.plan_builder import macro_summary_line, plan_averages
+    avg = plan_averages(plan)
+    assert avg["calories"] == pytest.approx(493.0)
+    assert avg["protein"] == pytest.approx(26.0)
+
+    line = macro_summary_line(plan)
+    assert "493 kcal" in line
+    assert "protein 26g (below the 60g target)" in line
+    assert "carbs 43g (on target)" in line
+    assert "fat 24g (on target)" in line
+    # And it's printed in the plan text the user reads.
+    assert line in render_plan_markdown(plan)
+
+
+def test_summary_marks_an_overshoot_above_target():
+    selection = _selection([("Lunch", [{"food": "paneer", "grams": 100}])])
+    plan, _ = build_plan(selection, FOODS, {"goal_calories": 265.0, "protein_g": 10.0})
+    from backend.agents.plan_builder import macro_summary_line
+    assert "protein 18g (above the 10g target)" in macro_summary_line(plan)
+
+
+def test_summary_without_targets_just_reports_actuals():
+    selection = _selection([("Lunch", [{"food": "paneer", "grams": 100}])])
+    plan, _ = build_plan(selection, FOODS, {})
+    from backend.agents.plan_builder import macro_summary_line
+    assert "protein 18g ·" in macro_summary_line(plan)
+    assert "target" not in macro_summary_line(plan)

@@ -24,7 +24,7 @@ from typing import Any
 
 import json_repair
 
-from backend.agents.plan_builder import PlanBuildReport, build_plan, render_plan_markdown
+from backend.agents.plan_builder import PlanBuildReport, build_plan, macro_summary_line, render_plan_markdown
 from backend.agents.state import NutriBotState
 from backend.context.builder import GenerationContext, build_context
 from backend.llm.base import GenerationConfig, Message
@@ -117,6 +117,23 @@ def _correction_block(guardrail_feedback: str | None) -> str:
     )
 
 
+def _portion_guidance(goal: Any) -> str:
+    """Targets above ~2,500 kcal are where the model's picks came out 25-40%
+    short in the live runs; below that it over-portioned by 10-20% when told
+    to be generous unconditionally. Only nudge upward where it's needed."""
+    try:
+        high = float(goal) > 2500
+    except (TypeError, ValueError):
+        high = False
+    if high:
+        return (
+            "This is a high target: selections for it typically come out 25-40% SHORT, so be generous — "
+            "use 1.5-2x a food's listed serving size for main meals and add a starchy staple (oats, roti, "
+            "rice) or a fat source (nuts, oil, nut butter) to every main meal."
+        )
+    return "Use roughly the listed serving sizes; the system fine-tunes the rest."
+
+
 def _build_selection_prompt(
     context: GenerationContext,
     intent: str,
@@ -159,10 +176,9 @@ def _build_selection_prompt(
         f"- For every item give \"grams\" (a number). The table shows each food's calories at its "
         f"listed serving size; pick amounts so that each day's items add up close to the Goal "
         f"Target of {goal} kcal. Do NOT write calories or macros yourself — the system computes every "
-        f"nutrient from the grams you give and will fine-tune portions if a day is off. Selections "
-        f"typically come out 25-40% SHORT of the target, so be generous: for main meals use 1.5-2x a "
-        f"food's listed serving size when the target is above 2500 kcal, and add a starchy staple "
-        f"(oats, roti, rice) or a fat source (nuts, oil, nut butter) to every main meal.\n"
+        f"nutrient from the grams you give and will fine-tune portions if a day is off. Aim for the "
+        f"protein target too: put a protein-dense food in every meal, not just lunch and dinner. "
+        f"{_portion_guidance(goal)}\n"
         f"- Allergy enforcement is absolute. For diabetic/PCOS users use only low-GI foods.\n"
         f"- Vary foods across the 7 days and from any previous accepted plans. Respect remembered "
         f"preferences (e.g. a disliked food is never used).\n"
@@ -183,6 +199,7 @@ def _build_prose_prompt(
     plan_markdown: str,
     report: PlanBuildReport,
     guardrail_feedback: str | None = None,
+    macro_summary: str = "",
 ) -> str:
     """Call 2: the message around a plan that is already final."""
     adjustment_note = ""
@@ -210,6 +227,12 @@ def _build_prose_prompt(
         f"3. Do NOT reproduce the day-by-day plan — it is appended below your message automatically. "
         f"Do not invent any food, amount, calorie, or macro figure; any number you mention must appear "
         f"in the FINAL MEAL PLAN or the targets above.\n"
+        f"3b. Be honest about the numbers. This is how the week actually compares to the targets: "
+        f"{macro_summary or 'see the plan above'}. Calories are on target every day (the system ensures "
+        f"that). If a macro is marked below or above its target, SAY SO plainly in one sentence and "
+        f"suggest a simple way to close the gap using foods already in the plan (e.g. a larger protein "
+        f"serving at one meal). NEVER state or imply that a target is met when the summary says it "
+        f"isn't.\n"
         f"4. Give 2-4 practical tips (meal prep, hydration, timing, swaps within the plan).\n"
         f"{routine_rule}"
         f"6. If the user has a medical condition, include this sentence verbatim: '{DOCTOR_NOTE}'\n"
@@ -394,11 +417,12 @@ async def _plan_turn(state: NutriBotState, context: GenerationContext, intent: s
             "plan_build_report": report.model_dump(),
         }
     plan_markdown = render_plan_markdown(plan)
+    macro_summary = macro_summary_line(plan)
 
     # Call 2: prose around the finished plan.
     try:
         prose = await _generate_text(
-            [Message(role="system", content=_build_prose_prompt(context, intent, plan_markdown, report, feedback))]
+            [Message(role="system", content=_build_prose_prompt(context, intent, plan_markdown, report, feedback, macro_summary))]
             + context.chat_history
             + [user_turn],
             PROSE_CONFIG,

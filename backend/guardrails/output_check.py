@@ -25,6 +25,11 @@ logger = logging.getLogger("nutribot.guardrails.output")
 # hit -- "avoid peanuts" is correct safety language, not an allergen leak.
 _NEGATION_LOOKBACK_CHARS = 20
 _NEGATION_RE = re.compile(r"\b(avoid|avoiding|no|not|without|skip|skipping|exclude|excluding|free of)\b")
+# "...-free" / "... free" right AFTER the allergen ("soy-free", "nut free
+# snacks") is the same safety language with the negation on the other side;
+# the lookback above can't see it, and it fired on a soy-allergy plan whose
+# prose said "soy-free" (caught in the eval harness).
+_TRAILING_FREE_RE = re.compile(r"^[\s-]*free\b")
 
 OUTPUT_CHECK_SYSTEM_PROMPT = """You are a safety reviewer checking a nutrition assistant's response
 before it is shown to a user. Check for:
@@ -64,6 +69,8 @@ def _scan_allergens_in_prose(response: str, allergies: list[str]) -> list[str]:
             window_start = max(0, match.start() - _NEGATION_LOOKBACK_CHARS)
             window = lowered[window_start:match.start()]
             if _NEGATION_RE.search(window):
+                continue
+            if _TRAILING_FREE_RE.match(lowered[match.end():match.end() + 8]):
                 continue
             hits.append(allergy)
             break

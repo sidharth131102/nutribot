@@ -9,9 +9,14 @@ Routing rules:
   CALORIE_CALCULATION  → calorie → meal_plan
   MEAL_PLAN_REQUEST    → calorie → rag → food → meal_plan
   PLAN_MODIFICATION    → calorie → rag → food → meal_plan
+  ROUTINE_REQUEST      → calorie → rag → food → meal_plan
   NUTRITION_QUESTION   → rag → meal_plan
-  ROUTINE_REQUEST      → rag → food → meal_plan
   GENERAL_CONVERSATION → meal_plan
+
+ROUTINE_REQUEST runs the calorie agent too (since the calorie-drift fix): a
+routine turn builds a full meal plan, and without goal_calories the plan
+builder has no target to balance the days against -- the eval harness
+caught a routine plan ranging 2,374-3,128 kcal across the week.
 
 memory_extraction after the output guardrail is conditional (see
 backend.memory.extraction.should_attempt_extraction) -- it only runs on
@@ -47,7 +52,7 @@ from backend.observability import new_trace_id, trace_id_var
 logger = logging.getLogger("nutribot.graph")
 
 # Intents that require calorie calculation before anything else
-CALORIE_INTENTS = {"CALORIE_CALCULATION", "MEAL_PLAN_REQUEST", "PLAN_MODIFICATION"}
+CALORIE_INTENTS = {"CALORIE_CALCULATION", "MEAL_PLAN_REQUEST", "PLAN_MODIFICATION", "ROUTINE_REQUEST"}
 # Intents that require RAG retrieval
 RAG_INTENTS = {"MEAL_PLAN_REQUEST", "PLAN_MODIFICATION", "NUTRITION_QUESTION", "ROUTINE_REQUEST"}
 # Intents that require food DB filtering
@@ -67,7 +72,7 @@ def _route_after_calorie(state: NutriBotState) -> str:
     intent = state.get("intent", "GENERAL_CONVERSATION")
     if intent == "CALORIE_CALCULATION":
         return "meal_plan"
-    # MEAL_PLAN_REQUEST and PLAN_MODIFICATION both need RAG next
+    # MEAL_PLAN_REQUEST, PLAN_MODIFICATION and ROUTINE_REQUEST all need RAG next
     return "rag"
 
 

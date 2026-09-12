@@ -208,3 +208,13 @@ def test_route_after_output_guardrail_delegates_when_blocked():
 
 def test_route_after_meal_plan_short_circuits_when_blocked():
     assert _route_after_meal_plan({"guardrail_blocked": True, "intent": "PLAN_MODIFICATION", "user_message": "I prefer chicken"}) == "end"
+
+
+def test_scan_ignores_trailing_free_negation():
+    """'soy-free' / 'nut free' is safety language with the negation AFTER the
+    word -- the lookback window can't see it. Fired on a real soy-allergy plan
+    in the eval harness whose prose said 'soy-free'."""
+    assert _scan_allergens_in_prose("This plan is completely soy-free and vegan.", ["soy"]) == []
+    assert _scan_allergens_in_prose("Nut free snacks only.", ["nut"]) == []
+    # ...but "soy" followed by anything else is still a hit.
+    assert _scan_allergens_in_prose("Add soy sauce to the stir-fry.", ["soy"]) == ["soy"]

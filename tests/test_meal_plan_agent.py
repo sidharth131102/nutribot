@@ -188,3 +188,22 @@ async def test_plan_intent_without_food_context_answers_without_a_plan(use_fake)
     assert len(fake.calls) == 1
     assert result["plan_proposed"] is False
     assert result["proposed_plan"] is None
+
+
+@pytest.mark.asyncio
+async def test_prose_prompt_carries_the_true_macro_summary_and_honesty_rule(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+    await meal_plan_agent_node(_state())
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "Weekly average per day:" in prose_prompt
+    assert "NEVER state or imply that a target is met" in prose_prompt
+
+
+@pytest.mark.asyncio
+async def test_portion_nudge_only_for_high_targets(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose", json.dumps(SELECTION), "prose"])
+    await meal_plan_agent_node(_state(calorie_result={"goal_calories": 1400.0}))
+    await meal_plan_agent_node(_state(calorie_result={"goal_calories": 3400.0}))
+    low, high = fake.calls[0]["messages"][0].content, fake.calls[2]["messages"][0].content
+    assert "be generous" not in low and "listed serving sizes" in low
+    assert "be generous" in high

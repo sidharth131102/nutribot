@@ -22,7 +22,9 @@
 - **Email delivery** — accepted meal plans can be sent to the user via SendGrid
 - **Auth** — JWT bearer tokens with email/password registration and Google OAuth 2.0 sign-in
 - **Chat history & plan memory** — conversations and accepted plans are persisted in MongoDB and injected into subsequent turns
-- **Next.js frontend** — chat interface with macro charts, meal plan cards, and an accept/modify panel
+- **Voice input (speech-to-text)** — a mic button transcribes speech in the browser via the Azure Speech SDK (short-lived token from the backend; the key never leaves the server), auto-detecting between the languages the user lists on their profile. No text-to-speech, by design
+- **Multilingual chat** — type or speak in any language; the message is translated to English at the edge, the whole pipeline (guardrails included) runs in English, and the reply is translated back. Decided per message, so switching languages mid-conversation just works. Meal-plan tables keep their food names untranslated
+- **Next.js frontend** — chat interface with macro charts, meal plan cards, an accept/modify panel, and a profile editor (including renaming the assistant)
 
 ---
 
@@ -44,8 +46,8 @@ input_guardrail → [blocked? END] → profile → memory_retrieval → intent
 | 4 | **Intent** | Classifies the message into one of six intents using a fast LLM |
 | 5 | **Calorie** | Runs the Mifflin-St Jeor calculator tool; never delegated to the LLM |
 | 6 | **RAG** | Hybrid search (Pinecone dense + in-process BM25, fused via RRF) with optional condition-metadata filtering, LLM-reranked down to the final top-k |
-| 7 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal to produce an `allowed_foods` CAG list |
-| 8 | **MealPlan** | Assembles a `GenerationContext` (`backend/context/builder.py`) from all upstream state and generates a structured meal plan or conversational reply |
+| 7 | **Food** | Filters `food_db.json` by diet type, allergens, medical tags, and goal, then selects a slot-aware, macro-balanced 40-item `allowed_foods` list (enough breakfast/snack/main-meal options to reach the calorie target) |
+| 8 | **MealPlan** | For plan intents, two LLM calls around deterministic code: (1) the model selects foods and gram amounts as JSON, (2) `plan_builder.py` computes every nutrient from `food_db.json`, rescales any day that misses the target, and renders the plan text, (3) the model writes the personalised message around the finished plan. Non-plan intents are a single conversational call. |
 | 9 | **Output Guardrail** | Deterministic allergen-in-prose scan + an LLM check for diagnosis-language/fabricated claims/off-allow-list foods. On failure, regenerates once with corrective feedback; falls back to a fixed safe response if still unsafe. |
 | 10 | **Memory Extraction** *(conditional)* | Only runs when the message carries a preference/goal signal or the intent is `PLAN_MODIFICATION` — extracts a durable fact via a small LLM call and stores it with supersession logic. Gated rather than run every turn, to avoid a 3rd LLM call per message. Always skipped when a guardrail blocked/fell back. |
 
@@ -56,7 +58,7 @@ input_guardrail → [blocked? END] → profile → memory_retrieval → intent
 | `MEAL_PLAN_REQUEST` | ✅ | ✅ | ✅ |
 | `PLAN_MODIFICATION` | ✅ | ✅ | ✅ |
 | `CALORIE_CALCULATION` | ✅ | ✗ | ✗ |
-| `ROUTINE_REQUEST` | ✗ | ✅ | ✅ |
+| `ROUTINE_REQUEST` | ✅ | ✅ | ✅ |
 | `NUTRITION_QUESTION` | ✗ | ✅ | ✗ |
 | `GENERAL_CONVERSATION` | ✗ | ✗ | ✗ |
 
@@ -229,16 +231,23 @@ The UI will be available at `http://localhost:3000`.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/profile/me` | Get current user profile |
-| `POST` | `/api/profile/create` | Create profile — requires `medical_data_processing` consent first if `medical_conditions` is non-empty (see Consent below) |
-| `PUT` | `/api/profile/update` | Update profile — same consent gate as above |
+| `POST` | `/api/profile/create` | Create profile — requires `medical_data_processing` consent first if `medical_conditions` is non-empty (see Consent below). Includes `bot_name` and `spoken_languages` (BCP-47 locales the mic listens for, max 4, one per language) |
+| `PUT` | `/api/profile/update` | Update any subset of profile fields (the frontend's profile editor uses this) — same consent gate as above |
 
 ### Chat
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/chat/message` | Send a message; returns agent response and optional proposed plan |
-| `GET` | `/api/chat/history` | Fetch session message history |
+| `POST` | `/api/chat/message` | Send a message; returns agent response and optional proposed plan. Optional `language` (BCP-47 locale from speech recognition) pins the source language; typed text is auto-detected. The response carries `language` (the reply's language) and `message_english` (what the pipeline processed, when translated) |
+| `GET` | `/api/chat/history` | Fetch session message history (`content` is what the user saw, in their language) |
 | `GET` | `/api/chat/sessions` | List all sessions for the user |
+
+### Speech
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/speech/token` | Short-lived (10 min) Azure Speech authorization token for browser-side recognition, plus the caller's candidate locales (their `spoken_languages`, or the server default). `503` when voice isn't configured |
+| `GET` | `/api/speech/languages` | The locales a user may pick for `spoken_languages`, the server default, and the max selectable |
 
 ### Plans
 
@@ -275,7 +284,7 @@ All document deletes remove the file and its metadata only — any facts already
 | `GET` | `/api/user/export` | JSON dump of everything stored for the caller (`users`, `chat_sessions`, `accepted_plans`, `consents`, `memories`, `episodic_events`, `medical_documents`) |
 | `DELETE` | `/api/user/account` | Hard-deletes the caller's documents across every collection (including uploaded medical document blobs). Irreversible. Note: the caller's JWT itself isn't revoked and keeps decoding successfully until it expires — every endpoint it could hit returns empty afterward since the data is actually gone, so there's nothing left to leak, but this isn't full token revocation. |
 
-No frontend UI exists yet for consent/export/delete/documents — backend/API only for now.
+The frontend covers profile create/edit (with the consent checkbox) and voice/multilingual chat. Export/delete and medical document upload/list/delete are still backend/API only.
 
 ---
 
@@ -302,7 +311,9 @@ All food items live in `data/food_db.json`. Each entry follows this schema:
 }
 ```
 
-The food filter agent uses `diet_types`, `allergens`, `medical_tags`, and `regions` to build a per-user `allowed_foods` list that is injected into the generation prompt. The LLM may only suggest foods from this list.
+The food filter agent uses `diet_types`, `allergens`, `medical_tags`, and `glycemic_index` to build a per-user `allowed_foods` list that is injected into the generation prompt. The LLM may only suggest foods from this list. Selection is slot-aware (a share of the list is reserved for breakfast, snack, lunch, and dinner foods) and macro-balanced within each slot, with carb and fat foods ranked by calorie density so grains, roti, rice, oils and nuts are always available — otherwise a high calorie target is physically unreachable.
+
+`quantity_grams` and the nutrient columns are the **only** source of a plan item's numbers: the model chooses a food and a gram amount, and `backend/agents/plan_builder.py` computes calories/protein/carbs/fat as `db_value × grams ÷ quantity_grams`. The model's own arithmetic is never used.
 
 ---
 
@@ -349,11 +360,12 @@ Goal adjustments:
 ## Safety Guarantees
 
 - The LLM **never** computes BMR, TDEE, or macro targets — `backend/tools/calorie_tool.py` is the single source of truth
+- The LLM **never** computes a meal plan's numbers either — `backend/agents/plan_builder.py` derives every item's calories and macros from `food_db.json` × grams, sums meals and days, and rescales any day outside ±5% of the target. The plan text the user reads is rendered from that computed plan, not written by the model
 - Every generation prompt includes a `USER CONTEXT` block built from the database profile, not from user-supplied text
-- The generation prompt only permits foods present in the CAG `allowed_foods` list
+- The allow-list is enforced deterministically: any selected food that doesn't match `allowed_foods` is dropped before nutrients are computed, and the output guardrail separately checks the prose
 - `data/food_db.json` is the macro source of truth; RAG documents are for nutrition knowledge only
 - Allergy, diet-type, and medical constraint checks are enforced at the food-filter stage, before the LLM is invoked
-- The allow-list is enforced via the generation prompt only — there is currently no deterministic post-generation check that the model's output actually stayed within `allowed_foods`
+- The eval harness's deterministic scorer re-checks every plan item's calories against `food_db.json × grams`, so a regression that lets model arithmetic back in fails the harness
 
 ---
 
@@ -382,6 +394,13 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `AZURE_STORAGE_CONTAINER` | `medical-documents` | Blob container name |
 | `AZURE_DOC_INTELLIGENCE_ENDPOINT` | — | Azure AI Document Intelligence resource endpoint |
 | `AZURE_DOC_INTELLIGENCE_API_KEY` | — | Azure AI Document Intelligence API key |
+| `AZURE_SPEECH_KEY` | — | Azure Speech key (an "Azure AI services" multi-service resource works). Empty = voice input disabled, mic button hidden |
+| `AZURE_SPEECH_REGION` | — | That resource's region, e.g. `centralindia` |
+| `AZURE_TRANSLATOR_KEY` | — | Azure Translator key; empty = reuse `AZURE_SPEECH_KEY` (one multi-service resource covers both) |
+| `AZURE_TRANSLATOR_REGION` | — | Empty = reuse `AZURE_SPEECH_REGION` |
+| `AZURE_TRANSLATOR_ENDPOINT` | `https://api.cognitive.microsofttranslator.com` | Translator REST endpoint |
+| `SPEECH_RECOGNITION_LANGUAGES` | `en-IN,hi-IN,ml-IN,fr-FR` | Server-default candidate locales for spoken-language auto-detection, used when a user hasn't set their own `spoken_languages` (max 4, one locale per language) |
+| `MULTILINGUAL_ENABLED` | `true` | Translate-at-the-edges switch. `false` = the pipeline sees raw text and always replies in English |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection string |
 | `MONGODB_DB_NAME` | `nutribot` | Database name |
 | `JWT_SECRET` | `change-me-in-production` | JWT signing secret |
@@ -433,7 +452,7 @@ Single-service container (backend only — MongoDB Atlas/Pinecone/the LLM provid
 uv run pytest
 ```
 
-`tests/test_calorie_tool.py` and `tests/test_food_filter.py` cover the two safety-critical modules per the v2 roadmap (deterministic calorie math, and allergen/diet/medical-condition exclusion). CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real LLM API calls and isn't suited to running on every commit.
+`tests/test_calorie_tool.py`, `tests/test_food_filter.py` and `tests/test_plan_builder.py` cover the safety-critical deterministic modules per the v2 roadmap (calorie math, allergen/diet/medical-condition exclusion, and plan arithmetic/rebalancing). `test_food_filter.py` also asserts, for every golden-set profile, that the food list handed to the model has enough options per meal slot and can physically reach that profile's calorie target. CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real LLM API calls and isn't suited to running on every commit.
 
 To run the evaluation harness manually instead (real API calls, not part of CI):
 
@@ -441,7 +460,7 @@ To run the evaluation harness manually instead (real API calls, not part of CI):
 uv run python -m backend.eval.runner
 ```
 
-Scores each case both deterministically and via [DeepEval](https://github.com/confident-ai/deepeval) metrics (faithfulness, answer relevancy, and two custom rubrics for medical-safety compliance and completeness) — DeepEval is a dev-only dependency, never installed in production, and its judge calls route through the same `LLMProvider` abstraction as everything else (no separate API key). Judge results gate the exit code for safety-relevant categories (`rag_dependent`, `medical_context`, `allergy_diet_edge_case`); elsewhere they're informational.
+Runs the 19-case golden set and scores each case both deterministically (plan produced when expected, allergens, allow-list, per-item calories consistent with `food_db.json`, every day within ±15% of the calorie target; plus a per-case line showing what `plan_builder` had to rescale) and via [DeepEval](https://github.com/confident-ai/deepeval) metrics (faithfulness, answer relevancy, and two custom rubrics for medical-safety compliance and completeness) — DeepEval is a dev-only dependency, never installed in production, and its judge calls route through the same `LLMProvider` abstraction as everything else (no separate API key). Judge results gate the exit code for safety-relevant categories (`rag_dependent`, `medical_context`, `allergy_diet_edge_case`); elsewhere they're informational.
 
 To evaluate a challenger model against the primary (Phase 7):
 

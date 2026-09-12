@@ -205,6 +205,38 @@ def build_plan(
     return plan, report
 
 
+def plan_averages(plan: dict[str, Any]) -> dict[str, float]:
+    """Per-day averages across the plan's days (calories, protein, carbs, fat)."""
+    days = plan.get("days", [])
+    if not days:
+        return {"calories": 0.0, "protein": 0.0, "carbs": 0.0, "fat": 0.0}
+    keys = ("calories", "protein", "carbs", "fat")
+    return {k: round(sum(float(d.get("daily_totals", {}).get(k, 0)) for d in days) / len(days), 1) for k in keys}
+
+
+def macro_summary_line(plan: dict[str, Any]) -> str:
+    """One line of truth about how the week compares to its targets --
+    shown to the user and handed to the prose model, so neither can claim a
+    macro target is met when the computed numbers say it isn't."""
+    avg = plan_averages(plan)
+    targets = plan.get("macro_targets", {})
+
+    def _cmp(actual: float, target: float) -> str:
+        if not target:
+            return f"{actual:.0f}g"
+        delta = (actual - target) / target
+        if abs(delta) <= 0.10:
+            return f"{actual:.0f}g (on target)"
+        return f"{actual:.0f}g ({'below' if delta < 0 else 'above'} the {target:.0f}g target)"
+
+    return (
+        f"Weekly average per day: {avg['calories']:.0f} kcal · "
+        f"protein {_cmp(avg['protein'], float(targets.get('protein_g') or 0))} · "
+        f"carbs {_cmp(avg['carbs'], float(targets.get('carbs_g') or 0))} · "
+        f"fat {_cmp(avg['fat'], float(targets.get('fat_g') or 0))}"
+    )
+
+
 def render_plan_markdown(plan: dict[str, Any]) -> str:
     """The plan as the user reads it in chat. Generated from the computed
     plan so the text can never disagree with the structured card/email."""
@@ -214,6 +246,7 @@ def render_plan_markdown(plan: dict[str, Any]) -> str:
         f"**Daily target: {plan.get('calorie_target', 0):.0f} kcal** "
         f"(protein {targets.get('protein_g', 0):.0f}g · carbs {targets.get('carbs_g', 0):.0f}g · fat {targets.get('fat_g', 0):.0f}g)"
     )
+    lines.append(f"_{macro_summary_line(plan)}_")
     for day in plan.get("days", []):
         totals = day.get("daily_totals", {})
         lines.append("")

@@ -10,9 +10,9 @@ NutriBot is an AI nutrition assistant: a FastAPI + LangGraph backend (multi-node
 
 These apply to **every** phase. If a task seems to require weakening one of them, stop and flag it rather than proceeding.
 
-1. **The LLM never does deterministic math.** `backend/tools/calorie_tool.py` owns all BMR/TDEE/macro arithmetic (Mifflin-St Jeor formula). The LLM only consumes the computed numbers, never invents or recalculates them.
-2. **`data/food_db.json` is the sole macro source of truth.** Any food's calorie/protein/carb/fat values come from this file, never from the LLM.
-3. **Safety constraints (allergen/diet/medical) are enforced via a pre-generation allow-list**, not prompt instruction alone. `backend/utils/food_filter.py::get_filtered_foods()` is the enforcement point; `backend/agents/meal_plan_agent.py::_sanitize_plan()` is the post-generation backstop.
+1. **The LLM never does deterministic math.** `backend/tools/calorie_tool.py` owns all BMR/TDEE/macro arithmetic (Mifflin-St Jeor formula), and `backend/agents/plan_builder.py` owns all meal-plan arithmetic (per-item nutrients from grams, meal/day totals, portion rescaling). The LLM only chooses foods and gram amounts and consumes the computed numbers; it never invents or recalculates them.
+2. **`data/food_db.json` is the sole macro source of truth.** Any food's calorie/protein/carb/fat values come from this file, never from the LLM — a plan item's nutrients are `db_value × grams ÷ quantity_grams`, computed in `plan_builder.py`, and the eval scorer re-checks that equality on every item.
+3. **Safety constraints (allergen/diet/medical) are enforced via a pre-generation allow-list**, not prompt instruction alone. `backend/utils/food_filter.py::get_filtered_foods()` is the enforcement point; `backend/agents/plan_builder.py::build_plan()` is the post-generation backstop (any off-list selection is dropped before nutrients are computed).
 4. **User isolation is enforced at the data-access layer**, never by prompt instruction or convention. `backend/db/mongo.py::UserScopedRepo` makes this structural — every method is constructed with a `user_id` and scopes every query by it.
 5. **The system extracts/reports medical facts, it never diagnoses.** Applies to memory extraction (`backend/memory/extraction.py`), medical document processing (`backend/documents/extraction.py`), and the output guardrail (`backend/guardrails/output_check.py`).
 6. **Generation is swappable behind one provider interface** — no agent or module calls a vendor SDK directly except the one file designated to own that vendor. See `backend/llm/base.py::LLMProvider` and the "one file owns one external service" pattern used throughout (`azure_openai_provider.py`, `blob_storage.py`, `doc_intelligence.py`, `bm25_index.py`, `deepeval_provider.py`, etc.).
@@ -38,9 +38,12 @@ These apply to **every** phase. If a task seems to require weakening one of them
 | 5 | RAG 2.0: hybrid search + reranking | ✅ Done | 2026-09-08 |
 | 6 | Guardrails + rate limiting + observability | ✅ Done | 2026-09-11 |
 | 7 | Azure AI Foundry challenger model (eval-gated) | ✅ Done — compared live: parity (13/16 vs 13/16), **not promoted** | 2026-09-12 |
-| 8 | Fine-tuning (optional, only if Phase 7 shows stock models fall short) | ⏭ Skipped — Phase 7 showed no capability gap (both stock models 13/16; misses are calorie-precision variance) | — |
+| — | Calorie-drift fix: deterministic plan arithmetic + slot-aware food selection | ✅ Done | 2026-09-12 |
+| 8 | Fine-tuning (optional, only if Phase 7 shows stock models fall short) | ⏭ Skipped — Phase 7 showed no capability gap (both stock models 13/16); the shared misses turned out to be a code/data problem, since fixed | — |
+| — | Profile edit + bot rename (frontend) | ✅ Done | 2026-09-12 |
+| — | Voice input (STT) + per-message multilingual chat + per-user spoken languages | ✅ Done (code + tests); live verification pending an Azure AI services resource | 2026-09-12 |
 | 9 | Azure production hardening (full Vercel→Azure migration) | ⬜ Not started | — |
-| — | Frontend UI for Phase 2/4 features (consent/export/delete/documents) | ⬜ Not started | — |
+| — | Frontend UI for remaining backend-only features (export/delete, documents) | ⬜ Not started (consent is now in the profile form) | — |
 
 ## Phase-by-phase detail
 
@@ -77,6 +80,15 @@ The user explicitly wanted production-grade behavior, not just eval-time quality
 ### Phase 7 — Azure AI Foundry challenger model (done; live comparison pending)
 The challenger is **gpt-4.1 as a second deployment on the existing Azure OpenAI resource** — user decision, which resolves the long-open "Foundry serverless-vs-dedicated" question as "neither: a deployment on the resource we already have, no separate Foundry hosting." Implemented exactly as the provider abstraction was designed to allow: `AzureOpenAIProvider` is now parameterized (deployment names, a `reasoning_model` flag, a provider name) so one class is registered twice in `backend/llm/factory.py` — `azure_openai` (primary) and `azure_openai_challenger`. `get_provider(name)` gained an explicit-name form so the eval judge can be **pinned** to one fixed provider across both arms (otherwise the challenger arm would judge its own output). `python -m backend.eval.runner --compare` runs the 16 golden cases on both arms, prints a side-by-side report, and emits a `promotable` verdict (challenger must match or beat the primary's gated-pass count with no safety-gated regressions and no pipeline errors). Promotion is a config flip (`AZURE_OPENAI_DEPLOYMENT_FULL/FAST` → the challenger deployment, `AZURE_OPENAI_REASONING_MODEL=false`), no traffic-splitting. **Outcome**: the live `--compare` run came back **parity** — gpt-5-mini-1 13/16, gpt-4.1-1 13/16, zero safety-gated regressions, zero errors, verdict PROMOTABLE — and the decision was **not to promote**: parity inside the known noise band at roughly 4-8× the per-token list price is not a promotion case. The gate worked in the "don't switch" direction, which is a legitimate outcome of an eval-gated phase. The deployment stays provisioned (pay-per-call, no idle cost) for future comparisons. Full scorecard in `docs/CURRENT_STATE.md`.
 
+### Calorie-drift fix — deterministic plan arithmetic + slot-aware food selection (done, 2026-09-12)
+Triggered by the user asking why `mpr-01`/`mpr-02` kept failing on *both* Phase 7 arms. Diagnosis: not sampling noise. Every miss was an undershoot (16-34%, on every day, on two very different models), which is the signature of a constraint problem. Two root causes: the 20-food allow-list was protein-first within each macro pool (no grains/roti/rice/oils; the non-veg muscle-gain profile got 2 breakfast foods and 1 snack food), so the target was physically unreachable at sane portions; and the model wrote every per-item calorie figure itself with the agent only summing them, so invariant 1 was not actually enforced on the number the scorer checks. Fix: `get_filtered_foods()` selects 40 foods slot-aware and calorie-density-ranked; new `backend/agents/plan_builder.py` computes every nutrient from `food_db.json` × grams and rescales any off-target day; the meal-plan agent is now selection-JSON → build → prose, with the plan text rendered by code. The user chose the two-call design over a cheaper single call because it guarantees prose and table can never disagree. Three stress profiles added to the golden set (19 cases). Detail and scorecard in `docs/CURRENT_STATE.md`; issues #39-#41 in `docs/ISSUES_AND_FIXES.md`.
+
+### Profile edit + bot rename (done, 2026-09-12)
+User request. The profile page was create-only with nothing linking back to it. It now runs in edit mode for a complete profile (prefilled from the live profile, any step clickable, save on every step, `?step=3` opens straight on the rename step from the chat header). Building it exposed that the frontend had never implemented the Phase 2 consent flow, so any profile with medical conditions was rejected by the backend's consent gate from the app; a consent checkbox on the Health step now grants it before saving.
+
+### Voice input + multilingual chat (done, 2026-09-12; live verification pending)
+User request, scoped to speech-to-text only (TTS explicitly out). Recognition runs in the browser with the Azure Speech SDK on a short-lived token from `GET /api/speech/token`; the key never leaves the server. Multilingual is **translate-at-the-edges** (Azure Translator): message → English → the unchanged pipeline → reply → user's language, decided per message, failing open to English, with plan tables kept verbatim. The user then asked "what about other languages?": the four default locales were a server-wide list bounded by Azure's 4-candidate at-start language identification, so "languages I speak" became a per-user profile field (max 4, one per language, validated server-side) that the token endpoint returns. Needs an "Azure AI services" multi-service resource (one key covers Speech + Translator) for live verification.
+
 ### Phase 8 — Fine-tuning (not started, conditional)
 Explicitly optional per the original roadmap — only pursue if Phase 7's evaluation shows stock/off-the-shelf models underperforming on this domain in a way fine-tuning would plausibly fix. Not a default next step.
 
@@ -85,11 +97,9 @@ The full Vercel → Azure migration: Azure Container Apps (backend), Azure Stati
 
 ## What's next
 
-Two reasonable next steps, not yet decided between:
-1. **Phase 9** (the Vercel → Azure migration: Container Apps + Static Web Apps + Key Vault). Phase 8 is skipped — Phase 7's comparison showed both stock models at parity with no capability gap, which is exactly the condition under which the roadmap says fine-tuning isn't warranted.
-2. **A frontend UI** for the several backend-only features that have accumulated across Phases 2, 4, 5, and 6 (consent management, data export/delete, medical document upload/list/delete) — none of these have any UI yet, by deliberate scoping decision at the time, but the gap is now fairly large.
-
-Check with the user rather than assuming which one they want.
+User decision (2026-09-12), in order:
+1. **A frontend UI** for the several backend-only features that have accumulated across Phases 2, 4, 5, and 6 (consent management, data export/delete, medical document upload/list/delete) — none of these have any UI yet, by deliberate scoping decision at the time, but the gap is now fairly large.
+2. **Phase 9** (the Vercel → Azure migration: Container Apps + Static Web Apps + Key Vault). Phase 8 is skipped — Phase 7's comparison showed both stock models at parity with no capability gap, which is exactly the condition under which the roadmap says fine-tuning isn't warranted.
 
 ## Open items carried from the original roadmap, not yet resolved
 
