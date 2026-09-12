@@ -71,7 +71,7 @@ class ProfileUpdateRequest(BaseModel):
     activity_level: Optional[ActivityLevel] = None
     diet_type: Optional[DietType] = None
     goal: Optional[Goal] = None
-    bot_name: Optional[str] = None
+    bot_name: Optional[str] = Field(default=None, min_length=1)
 
 
 class UserInDB(BaseModel):

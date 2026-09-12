@@ -1,8 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createProfile, type ProfilePayload } from "@/src/services/api";
+import {
+  createProfile,
+  getConsentStatus,
+  getMyProfile,
+  grantConsent,
+  updateProfile,
+  type AuthUser,
+  type ProfilePayload,
+} from "@/src/services/api";
 
 const STEPS = ["Personal", "Health", "Lifestyle", "Personalize"] as const;
 
@@ -94,30 +102,113 @@ function StyledSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   );
 }
 
+const EMPTY_FORM = {
+  full_name: "",
+  gender: "male",
+  age: "",
+  height_cm: "",
+  weight_kg: "",
+  height_unit: "cm",
+  weight_unit: "kg",
+  medical_conditions: [] as string[],
+  allergies: [] as string[],
+  custom_conditions: "",
+  custom_allergies: "",
+  medications: "",
+  activity_level: "moderately_active",
+  diet_type: "non_vegetarian",
+  goal: "maintenance",
+  bot_name: "Nova",
+};
+
+/** Split stored values into "known option" chips and a free-text remainder,
+ *  so an existing profile round-trips through the same two controls. */
+function splitKnown(values: string[], options: string[]) {
+  const lookup = new Map(options.map((o) => [o.toLowerCase(), o]));
+  const known: string[] = [];
+  const custom: string[] = [];
+  for (const v of values) {
+    const match = lookup.get(v.toLowerCase());
+    if (match) known.push(match);
+    else custom.push(v);
+  }
+  return { known, custom: custom.join(", ") };
+}
+
+function formFromProfile(user: AuthUser): typeof EMPTY_FORM {
+  const conditions = splitKnown(user.medical_conditions ?? [], MEDICAL_OPTIONS);
+  const allergies = splitKnown(user.allergies ?? [], ALLERGY_OPTIONS);
+  return {
+    ...EMPTY_FORM,
+    full_name: user.full_name ?? "",
+    gender: user.gender ?? "male",
+    age: user.age != null ? String(user.age) : "",
+    height_cm: user.height_cm != null ? String(user.height_cm) : "",
+    weight_kg: user.weight_kg != null ? String(user.weight_kg) : "",
+    medical_conditions: conditions.known,
+    custom_conditions: conditions.custom,
+    allergies: allergies.known,
+    custom_allergies: allergies.custom,
+    medications: user.medications ?? "",
+    activity_level: user.activity_level ?? "moderately_active",
+    diet_type: user.diet_type ?? "non_vegetarian",
+    goal: user.goal ?? "maintenance",
+    bot_name: user.bot_name || "Nova",
+  };
+}
+
 export default function ProfileBuilderPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Edit mode: the user already has a complete profile and came here from
+  // the chat page to change something (or just to rename the bot).
+  const [editMode, setEditMode] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [consentGranted, setConsentGranted] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
 
-  const [form, setForm] = useState({
-    full_name: "",
-    gender: "male",
-    age: "",
-    height_cm: "",
-    weight_kg: "",
-    height_unit: "cm",
-    weight_unit: "kg",
-    medical_conditions: [] as string[],
-    allergies: [] as string[],
-    custom_conditions: "",
-    custom_allergies: "",
-    medications: "",
-    activity_level: "moderately_active",
-    diet_type: "non_vegetarian",
-    goal: "maintenance",
-    bot_name: "Nova",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  useEffect(() => {
+    const token = localStorage.getItem("nutribot_token");
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+    const stored = localStorage.getItem("nutribot_user");
+    const cached: AuthUser | null = stored ? JSON.parse(stored) : null;
+    const requestedStep = parseInt(new URLSearchParams(window.location.search).get("step") ?? "", 10);
+
+    async function init() {
+      try {
+        if (cached?.profile_complete) {
+          const fresh = await getMyProfile();
+          setForm(formFromProfile(fresh));
+          setEditMode(true);
+          localStorage.setItem("nutribot_user", JSON.stringify(fresh));
+          if (!Number.isNaN(requestedStep) && requestedStep >= 0 && requestedStep < STEPS.length) {
+            setStep(requestedStep);
+          }
+        } else if (cached?.full_name) {
+          setForm((prev) => ({ ...prev, full_name: cached.full_name }));
+        }
+        try {
+          const consent = await getConsentStatus();
+          setConsentGranted(consent.granted);
+          setConsentChecked(consent.granted);
+        } catch {
+          // No consent record yet -- treated as not granted.
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load your profile");
+      } finally {
+        setInitializing(false);
+      }
+    }
+    init();
+  }, [router]);
 
   function set(key: string, value: unknown) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -157,22 +248,38 @@ export default function ProfileBuilderPage() {
         weight = weight * 0.453592;
       }
 
+      if (conditions.length > 0 && !consentChecked) {
+        setStep(1);
+        throw new Error(
+          "Please confirm the medical-data consent on the Health step to save medical conditions."
+        );
+      }
+
       const payload: ProfilePayload = {
-        full_name: form.full_name,
+        full_name: form.full_name.trim(),
         gender: form.gender,
         age: parseInt(form.age),
         height_cm: Math.round(height),
         weight_kg: Math.round(weight * 10) / 10,
         medical_conditions: conditions,
         allergies,
-        medications: form.medications || undefined,
+        // In edit mode an empty string clears a previously stored value;
+        // the backend skips only `null`/absent fields.
+        medications: editMode ? form.medications : form.medications || undefined,
         activity_level: form.activity_level,
         diet_type: form.diet_type,
         goal: form.goal,
-        bot_name: form.bot_name,
+        bot_name: form.bot_name.trim() || "Nova",
       };
 
-      const user = await createProfile(payload);
+      // The backend refuses to store medical conditions without recorded
+      // consent (403), so grant it first when the user has ticked the box.
+      if (conditions.length > 0 && consentChecked && !consentGranted) {
+        await grantConsent();
+        setConsentGranted(true);
+      }
+
+      const user = editMode ? await updateProfile(payload) : await createProfile(payload);
       localStorage.setItem("nutribot_user", JSON.stringify(user));
       router.push("/chat");
     } catch (err) {
@@ -183,21 +290,43 @@ export default function ProfileBuilderPage() {
   }
 
   const isLastStep = step === STEPS.length - 1;
+  const hasConditions =
+    form.medical_conditions.length > 0 || form.custom_conditions.trim().length > 0;
+
+  if (initializing) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-text">Build Your Profile</h1>
+          <h1 className="text-2xl font-bold text-text">
+            {editMode ? "Edit Your Profile" : "Build Your Profile"}
+          </h1>
           <p className="text-muted text-sm mt-1">
-            Help us personalize your nutrition journey
+            {editMode
+              ? "Changes apply to every plan and answer from now on"
+              : "Help us personalize your nutrition journey"}
           </p>
         </div>
 
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-6">
           {STEPS.map((s, i) => (
-            <div key={s} className="flex-1 flex flex-col items-center gap-1">
+            <button
+              key={s}
+              type="button"
+              // In edit mode every step is already filled in, so let the
+              // user jump straight to the one they came to change.
+              onClick={() => editMode && setStep(i)}
+              disabled={!editMode}
+              className="flex-1 flex flex-col items-center gap-1 disabled:cursor-default"
+            >
               <div
                 className={`w-full h-1.5 rounded-full transition-colors ${
                   i <= step ? "bg-primary" : "bg-panel"
@@ -210,7 +339,7 @@ export default function ProfileBuilderPage() {
               >
                 {s}
               </span>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -331,6 +460,24 @@ export default function ProfileBuilderPage() {
                   placeholder="e.g. Metformin 500mg, Levothyroxine"
                 />
               </Field>
+              {hasConditions && (
+                <label className="flex items-start gap-3 bg-panel border border-border rounded-xl p-3 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <span className="text-muted">
+                    I consent to NutriBot storing my medical conditions and using them to
+                    personalise nutrition guidance. This is required to save conditions
+                    {consentGranted && (
+                      <span className="text-primary"> · already on record</span>
+                    )}
+                    .
+                  </span>
+                </label>
+              )}
             </div>
           )}
 
@@ -429,6 +576,17 @@ export default function ProfileBuilderPage() {
                 ← Back
               </button>
             )}
+            {editMode && !isLastStep && (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={loading}
+                className="flex-1 bg-panel border border-primary/40 text-primary rounded-xl py-2.5 text-sm
+                  hover:bg-border disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Saving…" : "Save Changes"}
+              </button>
+            )}
             <button
               type="button"
               onClick={isLastStep ? submit : () => setStep(step + 1)}
@@ -439,10 +597,21 @@ export default function ProfileBuilderPage() {
               {loading
                 ? "Saving…"
                 : isLastStep
-                ? "Start Chatting 🚀"
+                ? editMode
+                  ? "Save Changes"
+                  : "Start Chatting 🚀"
                 : "Continue →"}
             </button>
           </div>
+          {editMode && (
+            <button
+              type="button"
+              onClick={() => router.push("/chat")}
+              className="w-full mt-3 text-xs text-muted hover:text-text transition-colors"
+            >
+              Cancel and go back to chat
+            </button>
+          )}
         </div>
       </div>
     </main>

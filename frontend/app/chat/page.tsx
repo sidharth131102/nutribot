@@ -258,7 +258,11 @@ export default function ChatPage() {
 
         {/* Sidebar footer */}
         <div className="flex-shrink-0 px-3 py-3 border-t border-border">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push("/profile")}
+            title="Edit your profile"
+            className="w-full flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-panel transition-colors text-left"
+          >
             <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">
               {user.full_name[0].toUpperCase()}
             </div>
@@ -266,7 +270,10 @@ export default function ChatPage() {
               <p className="text-xs font-medium text-text truncate">{user.full_name}</p>
               <p className="text-xs text-muted truncate">{user.email}</p>
             </div>
-          </div>
+            <svg className="w-4 h-4 text-muted flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M4 20h4l10.5-10.5a2.5 2.5 0 00-3.536-3.536L4 16v4z" />
+            </svg>
+          </button>
         </div>
       </aside>
 
@@ -287,13 +294,19 @@ export default function ChatPage() {
               </svg>
             </button>
 
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-background text-sm font-bold">
-              {user.bot_name[0].toUpperCase()}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-text">{user.bot_name}</p>
-              <p className="text-xs text-muted">Your AI nutrition companion</p>
-            </div>
+            <button
+              onClick={() => router.push("/profile?step=3")}
+              title="Rename your assistant"
+              className="flex items-center gap-3 rounded-lg px-1 py-0.5 hover:bg-panel transition-colors text-left"
+            >
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-background text-sm font-bold">
+                {user.bot_name[0].toUpperCase()}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-text">{user.bot_name}</p>
+                <p className="text-xs text-muted">Your AI nutrition companion · rename</p>
+              </div>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">

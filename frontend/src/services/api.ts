@@ -110,6 +110,24 @@ export async function updateProfile(payload: Partial<ProfilePayload>): Promise<A
   });
 }
 
+// ── Consent ────────────────────────────────────────────────────────────────────
+// Storing medical conditions requires explicit, recorded consent (backend
+// returns 403 otherwise). The profile form grants it before saving.
+
+export type ConsentStatus = {
+  consent_type: string;
+  granted: boolean;
+  last_updated?: string | null;
+};
+
+export async function getConsentStatus(): Promise<ConsentStatus> {
+  return request<ConsentStatus>("/api/consent/status");
+}
+
+export async function grantConsent(): Promise<ConsentStatus> {
+  return request<ConsentStatus>("/api/consent/grant", { method: "POST" });
+}
+
 // ── Chat ───────────────────────────────────────────────────────────────────────
 
 export type ChatMessage = {
