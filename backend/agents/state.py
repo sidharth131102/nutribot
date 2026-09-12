@@ -36,6 +36,7 @@ class NutriBotState(TypedDict, total=False):
     response: str
     plan_proposed: bool
     proposed_plan: Optional[dict[str, Any]]
+    plan_build_report: Optional[dict[str, Any]]  # plan_builder.PlanBuildReport (dropped/rebalanced/off-target)
 
     # ── Memory Retrieval / Extraction (Phase 3) ───────────────────────────────
     relevant_memories: list[dict[str, Any]]  # top-N active long-term facts

@@ -8,11 +8,16 @@ see scorers/judge.py.
 import re
 from typing import Any
 
+from backend.agents.plan_builder import parse_grams
 from backend.agents.state import NutriBotState
 from backend.eval.models import DeterministicResult, GoldenCase
-from backend.utils.food_filter import food_name_matches
+from backend.utils.food_filter import find_food
 
 CALORIE_TOLERANCE = 0.15  # ±15%
+# Per-item calories must equal food_db calories x grams / serving, to within
+# rounding. This is the eval-side proof of invariants 1 and 2: if a plan item
+# ever carries a figure the builder didn't compute, this catches it.
+ITEM_CALORIE_SLACK_KCAL = 1.0
 
 
 def _normalize(s: str) -> str:
@@ -20,10 +25,7 @@ def _normalize(s: str) -> str:
 
 
 def _matched_food(food_name: str, food_context: list[dict[str, Any]]) -> dict[str, Any] | None:
-    for food in food_context:
-        if food_name_matches(food_name, [food]):
-            return food
-    return None
+    return find_food(food_name, food_context)
 
 
 def score_deterministic(case: GoldenCase, state: NutriBotState) -> DeterministicResult:
@@ -84,6 +86,16 @@ def score_deterministic(case: GoldenCase, state: NutriBotState) -> Deterministic
                     if allergy in declared:
                         failures.append(
                             f"plan includes '{item.get('food')}' which contains allergen '{allergy}'"
+                        )
+                grams = parse_grams(item.get("quantity"))
+                base = float(matched.get("quantity_grams") or 0)
+                if grams is not None and base > 0:
+                    expected = float(matched.get("calories", 0)) * grams / base
+                    actual = float(item.get("calories", 0) or 0)
+                    if abs(actual - expected) > ITEM_CALORIE_SLACK_KCAL:
+                        failures.append(
+                            f"'{item.get('food')}' {item.get('quantity')} lists {actual} kcal but food_db "
+                            f"gives {expected:.1f} -- item nutrients were not computed from the database"
                         )
             else:
                 # No structured match to check against -- fall back to a

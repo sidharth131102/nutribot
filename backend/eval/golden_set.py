@@ -68,6 +68,41 @@ GOLDEN_CASES: list[GoldenCase] = [
         expect_plan=True,
     ),
 
+    # Stress profiles for the calorie-target fix: a small-frame sedentary
+    # target near the bottom of the realistic range and an extremely active
+    # target near the top. If the food list or the builder can't reach either
+    # end, these are the cases that show it.
+    GoldenCase(
+        id="mpr-03",
+        category="meal_plan_request",
+        profile={
+            **_BASE_VEG,
+            "full_name": "Meera Iyer",
+            "age": 45,
+            "height_cm": 155,
+            "weight_kg": 55,
+            "activity_level": "sedentary",
+            "goal": "maintenance",
+        },
+        user_message="Please make me a simple weekly meal plan.",
+        expect_plan=True,
+    ),
+    GoldenCase(
+        id="mpr-04",
+        category="meal_plan_request",
+        profile={
+            **_BASE_NONVEG,
+            "full_name": "Arjun Singh",
+            "age": 25,
+            "height_cm": 185,
+            "weight_kg": 90,
+            "activity_level": "extremely_active",
+            "goal": "muscle_gain",
+        },
+        user_message="I train twice a day, give me a meal plan that actually covers my energy needs.",
+        expect_plan=True,
+    ),
+
     # ── plan_modification ───────────────────────────────────────────────────
     GoldenCase(
         id="pm-01",
@@ -103,6 +138,23 @@ GOLDEN_CASES: list[GoldenCase] = [
         category="allergy_diet_edge_case",
         profile={**_BASE_VEG, "allergies": ["milk"], "medical_conditions": ["diabetes"]},
         user_message="I'm lactose intolerant and diabetic — can you make me a meal plan?",
+        expect_plan=True,
+    ),
+
+    # Triple constraint: vegan + diabetic (low-GI only) + soy allergy removes
+    # tofu/tempeh/soya chunks/soy milk -- the vegan protein backbone -- so
+    # this is the profile most likely to expose a starved food list.
+    GoldenCase(
+        id="ade-03",
+        category="allergy_diet_edge_case",
+        profile={
+            **_BASE_VEG,
+            "full_name": "Priya Nair",
+            "diet_type": "vegan",
+            "allergies": ["soy"],
+            "medical_conditions": ["diabetes"],
+        },
+        user_message="I'm vegan and diabetic and allergic to soy. Can you make me a meal plan?",
         expect_plan=True,
     ),
 

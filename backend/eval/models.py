@@ -65,3 +65,8 @@ class CaseResult(BaseModel):
     deterministic: DeterministicResult
     judge: JudgeResult | None = None
     response_preview: str = ""
+    # plan_builder.PlanBuildReport as a dict, when a plan was built this turn:
+    # which days code had to rescale, by how much, and which are still off
+    # target -- distinguishes "the model's picks were fine" from "the builder
+    # rescued them" from "the food list couldn't reach the target".
+    plan_build: dict[str, Any] | None = None

@@ -78,6 +78,12 @@ def get_filtered_foods(
 ) -> list[dict[str, Any]]:
     """Return foods filtered and ranked for the given user profile.
 
+    Filtering (diet type, allergens, medical conditions, GI) is absolute and
+    happens first. Selection then reserves a share of `limit` per meal slot
+    (SLOT_SHARE) and balances macros within each slot (_select_balanced), so
+    the list handed to the model can physically reach the calorie target at
+    every meal of the day.
+
     Args:
         user_profile: The full user profile dict.
         meal_type: Optional filter by meal type (breakfast/lunch/dinner/snack).
@@ -124,47 +130,126 @@ def get_filtered_foods(
 
         filtered.append(food)
 
-    # Rank within a macro category: low GI first for relevant conditions, then high protein
-    def _rank(food: dict[str, Any]) -> tuple:
-        protein_score = -float(food.get("protein", 0))
-        gi_score = 0 if food.get("glycemic_index") in LOW_GI_VALUES else 1
-        return (gi_score, protein_score)
+    # An explicit meal_type filter means the caller wants one slot's foods,
+    # so the per-slot quota pass below would be meaningless -- just balance.
+    if meal_type:
+        return _select_balanced(filtered, limit, needs_low_gi)
 
-    # Select across protein/carb/fat pools proportionally to MACRO_SELECTION_SPLIT
-    # instead of one flat protein-first sort — a pure protein-first ranking
-    # systematically excludes carb/fat foods from a small `limit`, capping how
-    # many calories a plan built only from these items can ever reach.
-    pools: dict[str, list[dict[str, Any]]] = {"protein": [], "carb": [], "fat": []}
-    for food in filtered:
-        pools[_dominant_macro(food)].append(food)
-    for pool in pools.values():
-        pool.sort(key=_rank)
-
-    allocation = {k: round(limit * v) for k, v in MACRO_SELECTION_SPLIT.items()}
-    # Rounding may over/under-shoot `limit` by a food or two — fine, the
-    # shortfall-redistribution pass below reconciles it against real pool sizes.
-
+    # Slot-aware selection. Before this, a single macro-balanced pass over
+    # the whole list handed a non-veg muscle-gain profile 19 lunch/dinner
+    # foods, 2 breakfast foods and 1 snack food -- 7 breakfasts and 14
+    # snacks a week had to come from paneer, tofu scramble and tuna, and
+    # every day undershot the calorie target by 25-35% because there was
+    # nothing calorie-dense to fill the small meals with.
     selected: list[dict[str, Any]] = []
-    remaining_pools = dict(pools)
-    remaining_slots = limit
-    categories = list(allocation.keys())
-    for i, category in enumerate(categories):
-        pool = remaining_pools[category]
-        is_last = i == len(categories) - 1
-        take = min(len(pool), remaining_slots) if is_last else min(len(pool), allocation[category])
-        selected.extend(pool[:take])
-        remaining_pools[category] = pool[take:]
-        remaining_slots -= take
+    seen: set[str] = set()
+    for slot, share in SLOT_SHARE.items():
+        quota = round(limit * share)
+        candidates = [
+            f for f in filtered
+            if f["id"] not in seen and slot in {m.lower() for m in f.get("meal_types", [])}
+        ]
+        for food in _select_balanced(candidates, quota, needs_low_gi):
+            selected.append(food)
+            seen.add(food["id"])
 
-    # Redistribute any shortfall (a pool ran out) using whatever's left, in rank order
-    if remaining_slots > 0:
-        leftover = sorted(
-            (food for pool in remaining_pools.values() for food in pool),
-            key=_rank,
-        )
-        selected.extend(leftover[:remaining_slots])
+    # Slot quotas that couldn't be filled (a niche profile with few breakfast
+    # foods, say) leave room -- top up from whatever is left, still balanced.
+    if len(selected) < limit:
+        remaining = [f for f in filtered if f["id"] not in seen]
+        selected.extend(_select_balanced(remaining, limit - len(selected), needs_low_gi))
 
     return selected[:limit]
+
+
+# Share of the list reserved for each meal slot. Lunch and dinner overlap
+# almost entirely in food_db.json, so their combined share is effectively one
+# main-meal pool; breakfast and snacks are the slots that used to starve.
+SLOT_SHARE: dict[str, float] = {"breakfast": 0.25, "snack": 0.20, "lunch": 0.275, "dinner": 0.275}
+
+# Carb foods at or above this density are "staples" (grains, roti, oats,
+# makhana); below it they're produce (vegetables, fruit). Both belong in a
+# plan, but only staples let a day reach its calorie target.
+STAPLE_MIN_KCAL_PER_100G = 100.0
+
+
+def _kcal_per_100g(food: dict[str, Any]) -> float:
+    grams = float(food.get("quantity_grams") or 0)
+    return float(food.get("calories", 0)) / grams * 100 if grams > 0 else 0.0
+
+
+def _interleave(primary: list[dict[str, Any]], secondary: list[dict[str, Any]], ratio: int = 2) -> list[dict[str, Any]]:
+    """`ratio` items from primary, then one from secondary, repeat; leftovers appended."""
+    out: list[dict[str, Any]] = []
+    p, s = 0, 0
+    while p < len(primary) or s < len(secondary):
+        for _ in range(ratio):
+            if p < len(primary):
+                out.append(primary[p])
+                p += 1
+        if s < len(secondary):
+            out.append(secondary[s])
+            s += 1
+    return out
+
+
+def _select_balanced(candidates: list[dict[str, Any]], n: int, needs_low_gi: bool) -> list[dict[str, Any]]:
+    """Pick up to `n` foods across protein/carb/fat pools per MACRO_SELECTION_SPLIT.
+
+    A flat protein-first ranking used to exclude carb/fat foods entirely from
+    a small `limit` (issue #12), and even after pooling by dominant macro the
+    *within-pool* ranking was still protein-first -- so the "carb" pool was
+    all dals and the "fat" pool all seeds, never oats/roti/rice/oils. Carb
+    and fat pools now rank by calorie density (with a 2:1 staple:produce
+    interleave for carbs so vegetables and fruit still appear); only the
+    protein pool ranks by protein.
+    """
+    if n <= 0 or not candidates:
+        return []
+
+    def _gi(food: dict[str, Any]) -> int:
+        # Low-GI-first ordering only matters for profiles that need it; for
+        # everyone else it just pushed medium-GI staples like oats to the back.
+        if not needs_low_gi:
+            return 0
+        return 0 if food.get("glycemic_index") in LOW_GI_VALUES else 1
+
+    pools: dict[str, list[dict[str, Any]]] = {"protein": [], "carb": [], "fat": []}
+    for food in candidates:
+        pools[_dominant_macro(food)].append(food)
+
+    pools["protein"].sort(key=lambda f: (_gi(f), -float(f.get("protein", 0))))
+    pools["fat"].sort(key=lambda f: (_gi(f), -_kcal_per_100g(f)))
+    staples = sorted(
+        (f for f in pools["carb"] if _kcal_per_100g(f) >= STAPLE_MIN_KCAL_PER_100G),
+        key=lambda f: (_gi(f), -_kcal_per_100g(f)),
+    )
+    produce = sorted(
+        (f for f in pools["carb"] if _kcal_per_100g(f) < STAPLE_MIN_KCAL_PER_100G),
+        key=lambda f: (_gi(f), -float(f.get("protein", 0))),
+    )
+    pools["carb"] = _interleave(staples, produce)
+
+    allocation = {k: round(n * v) for k, v in MACRO_SELECTION_SPLIT.items()}
+    selected: list[dict[str, Any]] = []
+    remaining_slots = n
+    for i, category in enumerate(allocation):
+        pool = pools[category]
+        is_last = i == len(allocation) - 1
+        take = min(len(pool), remaining_slots) if is_last else min(len(pool), allocation[category])
+        selected.extend(pool[:take])
+        pools[category] = pool[take:]
+        remaining_slots -= take
+
+    # A pool ran out -- top up round-robin from the others so the shortfall
+    # doesn't all land in one macro.
+    while remaining_slots > 0 and any(pools.values()):
+        for category in allocation:
+            if remaining_slots > 0 and pools[category]:
+                selected.append(pools[category].pop(0))
+                remaining_slots -= 1
+
+    return selected[:n]
 
 
 def format_food_context(foods: list[dict[str, Any]]) -> str:
@@ -206,14 +291,31 @@ def food_name_matches(candidate: str, food_context: list[dict[str, Any]]) -> boo
     if not candidate_norm:
         return False
 
+    return find_food(candidate, food_context) is not None
+
+
+def find_food(candidate: str, food_context: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The approved food a model-generated name refers to, or None.
+
+    Same tolerance as food_name_matches (this is what it's built on). Exact
+    name/id matches win over substring matches so "dal" resolves to "dal",
+    not "masoor dal (cooked)" -- the plan builder computes every nutrient
+    from the returned entry, so which entry wins actually matters.
+    """
+    candidate_norm = _strip_qualifier(candidate)
+    candidate_id = candidate.strip().lower()
+    if not candidate_norm:
+        return None
+
+    partial: dict[str, Any] | None = None
     for food in food_context:
         allowed_norm = _strip_qualifier(food.get("food", ""))
         allowed_id = str(food.get("id", "")).strip().lower()
         if not allowed_norm:
             continue
         if candidate_norm == allowed_norm or candidate_id == allowed_id:
-            return True
-        if candidate_norm in allowed_norm or allowed_norm in candidate_norm:
-            return True
+            return food
+        if partial is None and (candidate_norm in allowed_norm or allowed_norm in candidate_norm):
+            partial = food
 
-    return False
+    return partial

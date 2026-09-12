@@ -6,9 +6,9 @@ checks. Runs after every meal_plan_agent_node call, for every intent --
 diagnosis-language and fabricated-claim risk exist in plain nutrition
 answers too, not just meal plans.
 
-_sanitize_plan() in meal_plan_agent.py already enforces the food allow-list
-on the *structured* plan JSON; this closes the gap that leaves free-text
-prose unchecked.
+plan_builder.build_plan() already enforces the food allow-list on the
+*structured* plan (anything off-list is dropped before nutrients are
+computed); this closes the gap that leaves free-text prose unchecked.
 """
 import json
 import logging

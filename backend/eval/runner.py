@@ -86,6 +86,7 @@ async def _run_all() -> list[CaseResult]:
                     deterministic=deterministic,
                     judge=judge,
                     response_preview=state.get("response", "")[:120],
+                    plan_build=state.get("plan_build_report"),
                 )
             )
         except Exception as exc:
@@ -171,6 +172,25 @@ def _judge_str(r: CaseResult) -> str:
     return f"{f}/{r.judge.answer_relevancy:.1f}/{r.judge.medical_safety:.1f}/{r.judge.completeness:.1f}"
 
 
+def _plan_build_str(build: dict) -> str:
+    """One line on what plan_builder had to do: how far the model's own
+    picks were from target before code corrected them."""
+    days = build.get("day_calories") or []
+    rebalanced = build.get("rebalanced_days") or {}
+    factors = ", ".join(f"{d.replace('Day ', 'D')}x{f:.2f}" for d, f in rebalanced.items())
+    parts = [
+        f"days kcal {[round(d) for d in days]}",
+        f"rebalanced {len(rebalanced)}/{len(days)}" + (f" ({factors})" if factors else ""),
+    ]
+    if build.get("off_target_days"):
+        parts.append(f"OFF-TARGET {build['off_target_days']}")
+    if build.get("dropped_items"):
+        parts.append(f"dropped {build['dropped_items']}")
+    if build.get("unparseable_items"):
+        parts.append(f"no-grams {build['unparseable_items']}")
+    return " | ".join(parts)
+
+
 def _print_report(results: list[CaseResult]) -> None:
     print("\n" + "=" * 110)
     print(f"{'CASE':<10} {'CATEGORY':<24} {'INTENT':<22} {'DET':<6} {'JUDGE (f/r/s/c)':<18} GATED  FAILURES")
@@ -182,6 +202,8 @@ def _print_report(results: list[CaseResult]) -> None:
         if r.judge and r.judge.notes:
             failures = f"{failures}; judge: {r.judge.notes}" if failures else f"judge: {r.judge.notes}"
         print(f"{r.case_id:<10} {r.category:<24} {r.intent:<22} {det:<6} {_judge_str(r):<18} {gated:<6} {failures}")
+        if r.plan_build:
+            print(f"{'':<10} plan: {_plan_build_str(r.plan_build)}")
     print("=" * 110)
 
     total = len(results)
