@@ -156,6 +156,22 @@ def build_graph() -> StateGraph:
     return graph
 
 
+# Friendly, user-facing labels for the progress events streamed by
+# stream_chat_pipeline() -- keyed by graph node name so a new node just needs
+# an entry here to show up; an unmapped node falls back to its raw name.
+NODE_PROGRESS_LABELS = {
+    "input_guardrail": "Checking your message",
+    "profile": "Loading your profile",
+    "memory_retrieval": "Recalling what I know about you",
+    "intent": "Understanding your request",
+    "calorie": "Calculating your targets",
+    "rag": "Checking clinical guidelines",
+    "food": "Filtering safe foods",
+    "meal_plan": "Building your response",
+    "output_guardrail": "Double-checking the response",
+    "memory_extraction": "Saving what I learned",
+}
+
 _compiled_graph = None
 
 
@@ -203,3 +219,55 @@ async def run_chat_pipeline(
         result.get("plan_proposed"),
     )
     return result
+
+
+async def stream_chat_pipeline(user_id: str, session_id: str, user_message: str):
+    """Like run_chat_pipeline, but yields a progress event after every graph
+    node completes instead of only returning at the very end.
+
+    This is NOT token-level streaming of the model's output: the output
+    guardrail (backend/guardrails/nodes.py) has to see a complete response
+    before it can decide pass/fail, and a meal-plan turn is two sequential
+    LLM calls with deterministic code in between -- there's no single
+    in-progress token stream that's ever safe or meaningful to show the user
+    directly. What this gives instead is real per-stage progress (each event
+    fires exactly when that node finishes, not a guessed timer), so a 70s
+    meal-plan turn shows "Building your response" instead of a frozen
+    spinner. The caller gets the exact same final state dict as
+    run_chat_pipeline's return value, just via the last yielded event.
+
+    Yields dicts: {"type": "progress", "node": str, "label": str} for every
+    completed node, then exactly one {"type": "done", "state": NutriBotState}.
+    """
+    trace_id = trace_id_var.get()
+    if trace_id == "-":
+        trace_id = new_trace_id()
+        trace_id_var.set(trace_id)
+
+    graph = get_compiled_graph()
+    initial_state: NutriBotState = {
+        "trace_id": trace_id,
+        "user_id": user_id,
+        "session_id": session_id,
+        "user_message": user_message,
+    }
+    state: dict = dict(initial_state)
+    async for update in graph.astream(
+        initial_state,
+        stream_mode="updates",
+        config={
+            "run_name": "nutribot_chat_pipeline",
+            "tags": ["nutribot", "chat"],
+            "metadata": {"trace_id": trace_id, "user_id": user_id, "session_id": session_id},
+        },
+    ):
+        for node_name, node_state in update.items():
+            state.update(node_state)
+            yield {"type": "progress", "node": node_name, "label": NODE_PROGRESS_LABELS.get(node_name, node_name)}
+
+    logger.info(
+        "Pipeline complete (streamed) — intent=%s plan_proposed=%s",
+        state.get("intent"),
+        state.get("plan_proposed"),
+    )
+    yield {"type": "done", "state": state}

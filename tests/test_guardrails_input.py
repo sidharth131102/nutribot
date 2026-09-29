@@ -40,7 +40,7 @@ def test_every_non_none_category_has_a_canned_response():
 
 @pytest.mark.asyncio
 async def test_check_input_fails_open_on_provider_error(monkeypatch):
-    def _raise():
+    def _raise(name=None):
         raise RuntimeError("provider unavailable")
 
     monkeypatch.setattr("backend.guardrails.input_check.get_provider", _raise)
@@ -60,7 +60,7 @@ async def test_check_input_fails_open_on_unparseable_response(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_input("some message")
 
@@ -76,7 +76,7 @@ async def test_check_input_blocks_on_classified_category(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_input("can I take 5x my prescribed dose?")
 
@@ -94,7 +94,7 @@ async def test_check_input_does_not_block_on_none_category(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_input("what's a good high protein breakfast?")
 
@@ -113,3 +113,113 @@ def test_route_after_input_guardrail_continue():
 
 def test_route_after_input_guardrail_defaults_to_continue():
     assert _route_after_input_guardrail({}) == "continue"
+
+# ── ContentFilterBlocked: fail closed for self-harm/violence, open otherwise ──
+
+@pytest.mark.asyncio
+async def test_check_input_fails_closed_on_self_harm_content_filter(monkeypatch):
+    from backend.llm.base import ContentFilterBlocked
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            raise ContentFilterBlocked(["self_harm"])
+
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
+
+    result = await check_input("a message severe enough to trip Azure's own filter")
+
+    assert result.blocked is True
+    assert result.category == "SELF_HARM"
+    assert result.canned_response == CATEGORY_RESPONSES["SELF_HARM"]
+
+
+@pytest.mark.asyncio
+async def test_check_input_fails_closed_on_violence_content_filter(monkeypatch):
+    from backend.llm.base import ContentFilterBlocked
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            raise ContentFilterBlocked(["violence"])
+
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
+
+    result = await check_input("a message flagged for violence")
+
+    assert result.blocked is True
+    assert result.category == "SELF_HARM"
+
+
+@pytest.mark.asyncio
+async def test_check_input_fails_open_on_out_of_scope_content_filter_category(monkeypatch):
+    """hate/sexual aren't one of our three defined categories -- still fails
+    open, same as any other unhandled case, but via the dedicated except
+    branch (logged distinctly) rather than the generic one."""
+    from backend.llm.base import ContentFilterBlocked
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            raise ContentFilterBlocked(["sexual"])
+
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", lambda name=None: _FakeProvider())
+
+    result = await check_input("some message")
+
+    assert result.blocked is False
+
+
+# ── fast_call_provider pinning ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_uses_primary_when_fast_call_provider_unset(monkeypatch):
+    from backend.config import Settings
+
+    class _FakeResult:
+        text = '{"category": "NONE"}'
+
+    seen = {}
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    def _get_provider(name=None):
+        seen["name"] = name
+        return _FakeProvider()
+
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", _get_provider)
+    monkeypatch.setattr(
+        "backend.guardrails.input_check.get_settings",
+        lambda: Settings(_env_file=None, fast_call_provider=""),
+    )
+
+    await check_input("hi")
+
+    assert seen["name"] is None
+
+
+@pytest.mark.asyncio
+async def test_pins_to_configured_fast_call_provider(monkeypatch):
+    from backend.config import Settings
+
+    class _FakeResult:
+        text = '{"category": "NONE"}'
+
+    seen = {}
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    def _get_provider(name=None):
+        seen["name"] = name
+        return _FakeProvider()
+
+    monkeypatch.setattr("backend.guardrails.input_check.get_provider", _get_provider)
+    monkeypatch.setattr(
+        "backend.guardrails.input_check.get_settings",
+        lambda: Settings(_env_file=None, fast_call_provider="azure_openai_challenger"),
+    )
+
+    await check_input("hi")
+
+    assert seen["name"] == "azure_openai_challenger"

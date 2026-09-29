@@ -24,11 +24,12 @@ from typing import Any
 
 import json_repair
 
-from backend.agents.plan_builder import PlanBuildReport, build_plan, macro_summary_line, render_plan_markdown
+from backend.agents.plan_builder import MAX_DAYS, PlanBuildReport, build_plan, macro_summary_line, render_plan_markdown
 from backend.agents.state import NutriBotState
 from backend.context.builder import GenerationContext, build_context
 from backend.llm.base import GenerationConfig, Message
 from backend.llm.factory import get_provider
+from backend.utils.food_filter import TREAT_TAG, wants_cheat_day_in_conversation
 
 logger = logging.getLogger("nutribot.agent.meal_plan")
 
@@ -47,6 +48,22 @@ SELECTION_MAX_ATTEMPTS = 2
 # Budgets are generous on purpose: on a reasoning model (gpt-5 family) the
 # hidden reasoning tokens count against max_tokens, and a tight budget
 # yields an EMPTY completion rather than a truncated one (hit 3+ times).
+# How many days the user actually asked for -- "generate a 5-day meal plan"
+# was previously ignored entirely; the selection prompt always said 7. Only
+# digit forms are recognised ("5 day(s)", "5-day"); a bare number with no
+# "day(s)" nearby (e.g. a calorie figure) must never match. Clamped to
+# plan_builder's MAX_DAYS, the same cap the builder itself truncates to.
+DEFAULT_PLAN_DAYS = 7
+_DAY_COUNT_RE = re.compile(r"\b(\d{1,2})\s*-?\s*days?\b", re.IGNORECASE)
+
+
+def _requested_day_count(user_message: str) -> int:
+    match = _DAY_COUNT_RE.search(user_message or "")
+    if not match:
+        return DEFAULT_PLAN_DAYS
+    return max(1, min(MAX_DAYS, int(match.group(1))))
+
+
 SELECTION_CONFIG = GenerationConfig(profile="full", temperature=0.2, max_tokens=10000)
 PROSE_CONFIG = GenerationConfig(profile="full", temperature=0.5, max_tokens=4000)
 # Non-plan answers: max_tokens=6000 was tuned for Groq's 8000 TPM ceiling;
@@ -134,13 +151,46 @@ def _portion_guidance(goal: Any) -> str:
     return "Use roughly the listed serving sizes; the system fine-tunes the rest."
 
 
+def _cheat_day_rule(num_days: int, cheat_day_requested: bool, treat_food_names: list[str]) -> str:
+    """RULES block for a requested cheat day, or "" if none was requested or
+    none of the user's approved foods are treat-tagged (e.g. a diabetic/PCOS
+    profile, where every treat item is filtered out by the absolute low-GI
+    rule -- see food_filter.get_filtered_foods). In that case the plan is
+    silently just a normal one; _build_prose_prompt is told separately to
+    explain why, rather than the response claiming a cheat day it can't
+    deliver.
+
+    Checks cheat_day_requested explicitly rather than inferring it from
+    treat_food_names being non-empty: in production food_agent_node only
+    ever puts treat items in food_context when a cheat day was asked for,
+    but that's an invariant enforced by a different module, not something
+    this function should trust blindly -- a caller that passes food_context
+    containing treat items for an unrelated reason must not get an
+    unsolicited "cheat day" instruction."""
+    if not cheat_day_requested or not treat_food_names:
+        return ""
+    names = ", ".join(f'"{n}"' for n in treat_food_names)
+    return (
+        f"- CHEAT DAY: Day {num_days} is a cheat day. For that day only, favour the indulgent/treat "
+        f"items from the approved list above (available treats: {names}) instead of the usual whole-"
+        f"food staples -- still choose ONLY from the approved list, still give grams for every item, "
+        f"and still hit the same Goal Target for that day as every other day (a cheat day changes "
+        f"which foods are used, never the calorie target). Every other day stays strictly on the usual "
+        f"healthy staples, not treat items.\n"
+    )
+
+
 def _build_selection_prompt(
     context: GenerationContext,
     intent: str,
     guardrail_feedback: str | None = None,
+    num_days: int = DEFAULT_PLAN_DAYS,
+    cheat_day_requested: bool = False,
+    treat_food_names: list[str] | None = None,
 ) -> str:
     """Call 1: JSON only -- foods and grams per meal. The system computes nutrients."""
     goal = context.calorie_result.get("goal_calories", "the calorie target")
+    cheat_day_rule = _cheat_day_rule(num_days, cheat_day_requested, treat_food_names or [])
     routine_rule = (
         "- \"daily_routine\": a detailed schedule for the day — wake time, each meal's time, workout "
         "(type and time), hydration, and sleep time — as one string with line breaks.\n"
@@ -163,16 +213,16 @@ def _build_selection_prompt(
         else ""
     )
     return (
-        f"You are {context.bot_name}, selecting foods for a 7-day meal plan for {context.user_name}. "
+        f"You are {context.bot_name}, selecting foods for a {num_days}-day meal plan for {context.user_name}. "
         f"Output ONLY a JSON object — no prose, no markdown fence, no explanation.\n\n"
         f"{context.profile_context}\n"
         f"{_shared_context(context, include_food_list=True)}\n"
         f"RULES:\n"
         f"- Use ONLY foods from APPROVED FOOD OPTIONS above, with each food's exact name as listed. "
         f"Never invent a food. Any item not on the list is discarded.\n"
-        f"- Exactly 7 days. Each day has exactly these 5 meals, in this order: Breakfast, Mid-Morning "
-        f"Snack, Lunch, Evening Snack, Dinner. Use 2-4 items for Breakfast/Lunch/Dinner and 1-2 for "
-        f"each snack, choosing foods whose listed meal types fit the slot.\n"
+        f"- Exactly {num_days} day{'s' if num_days != 1 else ''}. Each day has exactly these 5 meals, in this "
+        f"order: Breakfast, Mid-Morning Snack, Lunch, Evening Snack, Dinner. Use 2-4 items for "
+        f"Breakfast/Lunch/Dinner and 1-2 for each snack, choosing foods whose listed meal types fit the slot.\n"
         f"- For every item give \"grams\" (a number). The table shows each food's calories at its "
         f"listed serving size; pick amounts so that each day's items add up close to the Goal "
         f"Target of {goal} kcal. Do NOT write calories or macros yourself — the system computes every "
@@ -180,16 +230,36 @@ def _build_selection_prompt(
         f"protein target too: put a protein-dense food in every meal, not just lunch and dinner. "
         f"{_portion_guidance(goal)}\n"
         f"- Allergy enforcement is absolute. For diabetic/PCOS users use only low-GI foods.\n"
-        f"- Vary foods across the 7 days and from any previous accepted plans. Respect remembered "
+        f"- Vary foods across the {num_days} days and from any previous accepted plans. Respect remembered "
         f"preferences (e.g. a disliked food is never used).\n"
+        f"{cheat_day_rule}"
         f"{routine_rule}"
         f"{modification_rule}"
-        f"\nJSON SHAPE (fill all 7 days):\n"
+        f"\nJSON SHAPE (fill all {num_days} day{'s' if num_days != 1 else ''}):\n"
         f'{{"days":[{{"day":"Day 1","meals":[{{"name":"Breakfast","items":[{{"food":"oats","grams":80}},'
         f'{{"food":"low-fat milk","grams":250}}]}},{{"name":"Mid-Morning Snack","items":[]}},'
         f'{{"name":"Lunch","items":[]}},{{"name":"Evening Snack","items":[]}},{{"name":"Dinner","items":[]}}]}}],'
         f'"daily_routine":"Wake 7AM, breakfast 8AM, lunch 1PM, workout 6PM, dinner 8PM, sleep 10:30PM"}}'
         f"{_correction_block(guardrail_feedback)}"
+    )
+
+
+def _cheat_day_note(num_days: int, cheat_day_requested: bool, treat_food_names: list[str]) -> str:
+    if not cheat_day_requested:
+        return ""
+    if treat_food_names:
+        return (
+            f"5b. The user asked for a cheat day, and Day {num_days} is it -- call this out explicitly "
+            f"and warmly (which day, and that it's more indulgent by design), and weave in the "
+            f"moderation guidance from the clinical guidelines above (still hits the calorie target, "
+            f"why that matters) rather than treating it as a diet slip.\n"
+        )
+    return (
+        "5b. The user asked for a cheat day, but none of the approved treat-style foods were safe for "
+        "their medical profile (e.g. every option was too high-glycemic for their condition), so this "
+        "plan does NOT include one. Gently and honestly explain that, reassure them it's about "
+        "protecting their health rather than being restrictive for its own sake, and note they can ask "
+        "again once their targets change.\n"
     )
 
 
@@ -200,8 +270,13 @@ def _build_prose_prompt(
     report: PlanBuildReport,
     guardrail_feedback: str | None = None,
     macro_summary: str = "",
+    num_days: int = DEFAULT_PLAN_DAYS,
+    cheat_day_requested: bool = False,
+    treat_food_names: list[str] | None = None,
 ) -> str:
     """Call 2: the message around a plan that is already final."""
+    plan_label = "the week" if num_days == 7 else f"this {num_days}-day plan"
+    cheat_day_note = _cheat_day_note(num_days, cheat_day_requested, treat_food_names or [])
     adjustment_note = ""
     if report.rebalanced_days:
         adjustment_note = (
@@ -214,6 +289,15 @@ def _build_prose_prompt(
         if intent == "ROUTINE_REQUEST"
         else "5. Briefly mention the daily routine (meal timing, hydration, activity) where it helps.\n"
     )
+    modification_explain_rule = (
+        "5c. If the user specifically asked for a food that isn't in the plan, and their profile above "
+        "shows an allergy or medical condition that's the real reason it couldn't be included, say that "
+        "plainly (e.g. \"pizza and burgers both use cheese, which isn't safe with your milk allergy\") "
+        "instead of just saying it wasn't on the approved list — that's true but unhelpful on its own. "
+        "If there's a same-category alternative already in the plan or the approved list, suggest it.\n"
+        if intent == "PLAN_MODIFICATION"
+        else ""
+    )
     return (
         f"{_persona_block(context)}"
         f"{_shared_context(context, include_food_list=False)}\n"
@@ -221,19 +305,21 @@ def _build_prose_prompt(
         f"food, amount, and number below is final):\n{plan_markdown}{adjustment_note}\n\n"
         f"INSTRUCTIONS:\n"
         f"1. Empathise first — acknowledge how {context.user_name} feels about their goal before anything else.\n"
-        f"2. Then write a warm, personal message introducing the week: in a short paragraph or a few "
+        f"2. Then write a warm, personal message introducing {plan_label}: in a short paragraph or a few "
         f"bullets, explain how the plan is built for their profile, goal, and any medical context, "
         f"naming a few of the actual foods from the plan.\n"
         f"3. Do NOT reproduce the day-by-day plan — it is appended below your message automatically. "
         f"Do not invent any food, amount, calorie, or macro figure; any number you mention must appear "
         f"in the FINAL MEAL PLAN or the targets above.\n"
-        f"3b. Be honest about the numbers. This is how the week actually compares to the targets: "
+        f"3b. Be honest about the numbers. This is how {plan_label} actually compares to the targets: "
         f"{macro_summary or 'see the plan above'}. Calories are on target every day (the system ensures "
         f"that). If a macro is marked below or above its target, SAY SO plainly in one sentence and "
         f"suggest a simple way to close the gap using foods already in the plan (e.g. a larger protein "
         f"serving at one meal). NEVER state or imply that a target is met when the summary says it "
         f"isn't.\n"
         f"4. Give 2-4 practical tips (meal prep, hydration, timing, swaps within the plan).\n"
+        f"{cheat_day_note}"
+        f"{modification_explain_rule}"
         f"{routine_rule}"
         f"6. If the user has a medical condition, include this sentence verbatim: '{DOCTOR_NOTE}'\n"
         f"7. Do NOT end with a question and do not ask whether to accept — that prompt is appended "
@@ -366,18 +452,35 @@ async def _plan_turn(state: NutriBotState, context: GenerationContext, intent: s
     food_context = state.get("food_context") or []
     calorie_result = state.get("calorie_result") or {}
     feedback = state.get("guardrail_feedback")
-    user_turn = Message(role="user", content=state.get("user_message", ""))
+    user_message = state.get("user_message", "")
+    user_turn = Message(role="user", content=user_message)
+    num_days = _requested_day_count(user_message)
+    cheat_day_requested = wants_cheat_day_in_conversation(user_message, state.get("chat_history"))
+    # food_context only carries treat items when food_agent_node widened the
+    # pool for this same cheat-day request -- an empty list here means either
+    # no cheat day was asked for, or the user's medical profile filtered
+    # every treat option out (see food_filter.get_filtered_foods).
+    treat_food_names = [f["food"] for f in food_context if TREAT_TAG in {t.lower() for t in f.get("tags", [])}]
 
     # Call 1: selection (JSON only), with one retry on unusable output.
     selection: dict[str, Any] | None = None
-    selection_prompt = _build_selection_prompt(context, intent, feedback)
+    selection_prompt = _build_selection_prompt(
+        context, intent, feedback, num_days, cheat_day_requested, treat_food_names,
+    )
     for attempt in range(1, SELECTION_MAX_ATTEMPTS + 1):
         prompt = selection_prompt
         if attempt > 1:
             prompt += "\n\nYour previous output was not a valid JSON object of the required shape. Output ONLY the JSON."
         try:
+            # No chat_history here (unlike the prose call below): picking
+            # foods/grams for a new plan doesn't need the conversational
+            # back-and-forth -- variety across plans is already handled by
+            # `previous_plans` in the prompt. Dropping it here halves how
+            # much history gets replayed per plan turn (it was previously
+            # sent to both calls), on top of _content_for_history trimming
+            # what that history actually contains.
             text = await _generate_text(
-                [Message(role="system", content=prompt)] + context.chat_history + [user_turn],
+                [Message(role="system", content=prompt), user_turn],
                 SELECTION_CONFIG,
             )
         except Exception as exc:
@@ -402,6 +505,13 @@ async def _plan_turn(state: NutriBotState, context: GenerationContext, intent: s
     if "clarifying_question" in selection:
         return {**state, "response": selection["clarifying_question"], "plan_proposed": False, "proposed_plan": None}
 
+    # The model is instructed to return exactly num_days, but that's a prompt
+    # rule, not a guarantee -- truncate deterministically to what was asked
+    # for, the same "never trust model arithmetic/counts" stance as
+    # plan_builder's own nutrient math.
+    if isinstance(selection.get("days"), list):
+        selection["days"] = selection["days"][:num_days]
+
     # Deterministic: nutrients, totals, rebalance, render.
     plan, report = build_plan(selection, food_context, calorie_result)
     if plan is None:
@@ -422,14 +532,18 @@ async def _plan_turn(state: NutriBotState, context: GenerationContext, intent: s
     # Call 2: prose around the finished plan.
     try:
         prose = await _generate_text(
-            [Message(role="system", content=_build_prose_prompt(context, intent, plan_markdown, report, feedback, macro_summary))]
+            [Message(role="system", content=_build_prose_prompt(
+                context, intent, plan_markdown, report, feedback, macro_summary, num_days,
+                cheat_day_requested, treat_food_names,
+            ))]
             + context.chat_history
             + [user_turn],
             PROSE_CONFIG,
         )
     except Exception as exc:
         logger.exception("Meal plan prose call failed: %s", exc)
-        prose = f"{context.user_name}, here is your plan for the week."
+        plan_label = "the week" if num_days == 7 else f"your {num_days}-day plan"
+        prose = f"{context.user_name}, here is {plan_label}."
 
     prose = prose.strip()
     response = f"{prose}\n\n{plan_markdown}\n\n{ACCEPT_PROMPT}"

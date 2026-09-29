@@ -45,8 +45,15 @@ def format_history(messages: list[dict]) -> list[Message]:
 def _format_memory_context(memories: list[dict[str, Any]]) -> str:
     if not memories:
         return ""
-    lines = [f"- {m['fact']}" for m in memories]
-    return "REMEMBERED CONTEXT:\n" + "\n".join(lines)
+    medical = [m["fact"] for m in memories if m.get("category") == "medical_history"]
+    other = [m["fact"] for m in memories if m.get("category") != "medical_history"]
+
+    sections = []
+    if medical:
+        sections.append("Medical history (from uploaded documents):\n" + "\n".join(f"- {f}" for f in medical))
+    if other:
+        sections.append("Other remembered context:\n" + "\n".join(f"- {f}" for f in other))
+    return "REMEMBERED CONTEXT:\n" + "\n\n".join(sections)
 
 
 def _format_episodic_context(events: list[dict[str, Any]]) -> str:

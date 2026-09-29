@@ -10,13 +10,32 @@ Reasoning-model vs. classic-model kwargs are driven by an explicit flag, never
 inferred from the deployment-name string (names are user-chosen and unreliable
 to parse).
 """
+import re
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import AzureChatOpenAI
 
 from backend.config import Settings
-from backend.llm.base import GenerationConfig, GenerationResult, LLMProvider, Message
+from backend.llm.base import ContentFilterBlocked, GenerationConfig, GenerationResult, LLMProvider, Message
+
+# Azure's content-filter rejection is a 400 whose body embeds a per-category
+# filtered/severity breakdown, e.g. "'self_harm': {'filtered': True,
+# 'severity': 'medium'}". Detected by matching the error's string form
+# rather than a specific exception class: langchain_openai's wrapper type
+# for this has shifted before and isn't a documented contract, whereas the
+# error body's shape is Azure's actual stable API surface. This is the one
+# file allowed to know that shape (invariant 6) -- every other file only
+# ever sees the provider-agnostic ContentFilterBlocked.
+_CONTENT_FILTER_MARKER = "content_filter"
+_FILTERED_CATEGORY_RE = re.compile(r"'(\w+)':\s*\{'filtered':\s*True")
+
+
+def _raise_if_content_filtered(exc: Exception) -> None:
+    text = str(exc)
+    if _CONTENT_FILTER_MARKER not in text:
+        return
+    raise ContentFilterBlocked(_FILTERED_CATEGORY_RE.findall(text)) from exc
 
 _ROLE_TO_LC = {
     "system": SystemMessage,
@@ -73,7 +92,11 @@ class AzureOpenAIProvider(LLMProvider):
 
         llm = AzureChatOpenAI(**kwargs)
         lc_messages = [_ROLE_TO_LC[m.role](content=m.content) for m in messages]
-        response = await llm.ainvoke(lc_messages)
+        try:
+            response = await llm.ainvoke(lc_messages)
+        except Exception as exc:
+            _raise_if_content_filtered(exc)  # re-raises as ContentFilterBlocked, else no-op
+            raise
         text = response.content if isinstance(response.content, str) else str(response.content)
 
         return GenerationResult(text=text, model=deployment, provider=self._provider_name)

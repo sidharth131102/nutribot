@@ -15,6 +15,7 @@ import logging
 import re
 from typing import Any
 
+from backend.config import get_settings
 from backend.guardrails.models import OutputCheckResult
 from backend.llm.base import GenerationConfig, Message
 from backend.llm.factory import get_provider
@@ -107,7 +108,10 @@ async def check_output(
     )
 
     try:
-        result = await get_provider().generate(
+        # A pass/fail safety judgment gains nothing from a reasoning model's
+        # "thinking" tax; fast_call_provider (empty by default) lets it be
+        # pinned to a faster classic model instead. See config.py.
+        result = await get_provider(get_settings().fast_call_provider or None).generate(
             messages=[
                 Message(role="system", content=OUTPUT_CHECK_SYSTEM_PROMPT),
                 Message(role="user", content=user_message),

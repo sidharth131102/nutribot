@@ -42,7 +42,7 @@ class NutriBotState(TypedDict, total=False):
     response_parts: Optional[dict[str, str]]
 
     # ── Memory Retrieval / Extraction (Phase 3) ───────────────────────────────
-    relevant_memories: list[dict[str, Any]]  # top-N active long-term facts
+    relevant_memories: list[dict[str, Any]]  # top-N active long-term facts, medical_history reserved a sub-quota
     recent_events: list[dict[str, Any]]      # top-N recent episodic events
 
     # ── Runtime guardrails (Phase 6) ──────────────────────────────────────────

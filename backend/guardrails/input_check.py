@@ -10,9 +10,19 @@ import json
 import logging
 import re
 
+from backend.config import get_settings
 from backend.guardrails.models import InputCategory, InputCheckResult
-from backend.llm.base import GenerationConfig, Message
+from backend.llm.base import ContentFilterBlocked, GenerationConfig, Message
 from backend.llm.factory import get_provider
+
+# Content-filter categories that map onto our own SELF_HARM response: if
+# Azure's own platform-level filter judged a message concerning enough for
+# self-harm or violence to refuse processing it outright, that is itself
+# strong evidence the message needs the crisis-line response -- the
+# opposite of the generic except block below, which fails open because most
+# failures there (timeouts, bad config) carry no signal about the message
+# itself.
+_FAIL_CLOSED_CATEGORIES = {"self_harm", "violence"}
 
 logger = logging.getLogger("nutribot.guardrails.input")
 
@@ -65,9 +75,15 @@ def _extract_category(text: str) -> InputCategory | None:
 
 
 async def check_input(user_message: str) -> InputCheckResult:
-    """Never raises -- any failure fails open (blocked=False, category=NONE)."""
+    """Fails open (blocked=False) on an ordinary error -- but a content-filter
+    rejection for self-harm/violence fails CLOSED instead, see
+    _FAIL_CLOSED_CATEGORIES above.
+    """
     try:
-        result = await get_provider().generate(
+        # A single-label classification call gains nothing from a reasoning
+        # model's "thinking" tax; fast_call_provider (empty by default) lets
+        # it be pinned to a faster classic model instead. See config.py.
+        result = await get_provider(get_settings().fast_call_provider or None).generate(
             messages=[
                 Message(role="system", content=INPUT_CHECK_SYSTEM_PROMPT),
                 Message(role="user", content=user_message),
@@ -79,6 +95,16 @@ async def check_input(user_message: str) -> InputCheckResult:
             return InputCheckResult(blocked=False)
 
         return InputCheckResult(blocked=True, category=category, canned_response=CATEGORY_RESPONSES[category])
+
+    except ContentFilterBlocked as exc:
+        if _FAIL_CLOSED_CATEGORIES.intersection(exc.flagged_categories):
+            logger.warning(
+                "Input guardrail: platform content filter flagged %s -- failing CLOSED as SELF_HARM",
+                exc.flagged_categories,
+            )
+            return InputCheckResult(blocked=True, category="SELF_HARM", canned_response=CATEGORY_RESPONSES["SELF_HARM"])
+        logger.warning("Input guardrail: platform content filter flagged %s -- failing open (out of scope)", exc.flagged_categories)
+        return InputCheckResult(blocked=False)
 
     except Exception:
         logger.exception("Input guardrail check failed, failing open")

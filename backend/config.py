@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     # would otherwise judge its own output.
     eval_judge_provider: str = "azure_openai"
 
+    # Latency: the factory entry used for small classification/safety-check
+    # calls that don't benefit from a reasoning model -- intent
+    # classification and the output guardrail's LLM check. Empty (default)
+    # = use the primary provider (today's behavior; safe for anyone who
+    # hasn't configured a second deployment). Set to e.g.
+    # "azure_openai_challenger" to route these specific calls to a faster
+    # classic model instead, skipping the reasoning-model "thinking" tax on
+    # every turn. Both call sites already fail open to a safe default on any
+    # provider error, so a misconfigured value here degrades gracefully
+    # rather than breaking chat.
+    fast_call_provider: str = ""
+
     # Azure Blob Storage (Phase 4: medical document uploads)
     azure_storage_connection_string: str = ""
     azure_storage_container: str = "medical-documents"

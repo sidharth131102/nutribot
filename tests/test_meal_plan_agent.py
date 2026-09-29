@@ -14,7 +14,9 @@ OATS = {"id": "FOOD_001", "food": "oats", "quantity_grams": 60, "calories": 228,
 MILK = {"id": "FOOD_002", "food": "low-fat milk", "quantity_grams": 250, "calories": 105, "protein": 8.5, "carbs": 12, "fat": 2.5, "meal_types": ["breakfast", "snack"]}
 PANEER = {"id": "FOOD_006", "food": "paneer", "quantity_grams": 100, "calories": 265, "protein": 18, "carbs": 3, "fat": 20, "meal_types": ["lunch", "dinner"]}
 ROTI = {"id": "FOOD_050", "food": "whole wheat roti", "quantity_grams": 80, "calories": 200, "protein": 6, "carbs": 40, "fat": 2, "meal_types": ["lunch", "dinner"]}
+PIZZA = {"id": "FOOD_124", "food": "cheese pizza slice", "quantity_grams": 120, "calories": 300, "protein": 12, "carbs": 34, "fat": 12, "meal_types": ["lunch", "dinner"], "tags": ["treat", "indulgent"]}
 FOODS = [OATS, MILK, PANEER, ROTI]
+FOODS_WITH_TREAT = FOODS + [PIZZA]
 
 SELECTION = {
     "days": [
@@ -207,3 +209,218 @@ async def test_portion_nudge_only_for_high_targets(use_fake):
     low, high = fake.calls[0]["messages"][0].content, fake.calls[2]["messages"][0].content
     assert "be generous" not in low and "listed serving sizes" in low
     assert "be generous" in high
+
+
+@pytest.mark.asyncio
+async def test_chat_history_reaches_prose_but_not_selection(use_fake):
+    """Regression for the latency fix: chat_history used to be replayed into
+    BOTH calls; the selection call (picking foods/grams for a new plan)
+    doesn't need the conversational back-and-forth, so it's dropped there
+    -- the prose call still gets it for continuity."""
+    # Raw stored-message shape (as read from Mongo), matching what
+    # build_context()/format_history() actually expects in state -- not
+    # Message objects, which is what context.chat_history becomes *after*
+    # that conversion.
+    history = [
+        {"role": "user", "content": "I don't like broccoli"},
+        {"role": "assistant", "content": "Noted!"},
+    ]
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(chat_history=history))
+
+    selection_messages = fake.calls[0]["messages"]
+    prose_messages = fake.calls[1]["messages"]
+    assert selection_messages == [selection_messages[0], selection_messages[-1]]  # system + user turn only
+    assert not any(m.content == "I don't like broccoli" for m in selection_messages)
+    assert any(m.content == "I don't like broccoli" for m in prose_messages)
+
+
+# ── Requested day count ──────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("message,expected", [
+    ("Give me a 5 day meal plan", 5),
+    ("Generate a 5-day plan please", 5),
+    ("I want a 1 day plan", 1),
+    ("Can I get a 14 day plan", 7),         # clamped to MAX_DAYS (7)
+    ("Generate a 20 day plan", 7),          # clamped to MAX_DAYS (7)
+    ("Give me a meal plan", 7),             # no count mentioned -- default
+    ("Calculate my calories for 2000 kcal", 7),  # bare number, not "N day(s)"
+])
+def test_requested_day_count_parses_and_clamps(message, expected):
+    assert agent._requested_day_count(message) == expected
+
+
+@pytest.mark.asyncio
+async def test_five_day_request_produces_a_five_day_plan(use_fake):
+    """The reported bug: asking for 5 days silently produced 7. The selection
+    prompt must say 5, and the builder must not keep more than 5 even if the
+    model ignores the instruction and returns all 7 anyway."""
+    fake = use_fake([json.dumps(SELECTION), "Asha, here is your 5-day plan."])
+
+    result = await meal_plan_agent_node(_state(user_message="Generate a meal plan for 5 days"))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "5-day meal plan" in sel_prompt
+    assert "Exactly 5 days" in sel_prompt
+    assert "fill all 5 days" in sel_prompt
+
+    plan = result["proposed_plan"]
+    assert len(plan["days"]) == 5
+
+
+@pytest.mark.asyncio
+async def test_one_day_request_uses_singular_wording(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(user_message="Give me a 1 day meal plan"))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "1-day meal plan" in sel_prompt
+    assert "Exactly 1 day." in sel_prompt
+    assert "fill all 1 day)" in sel_prompt
+
+
+# ── Cheat day ─────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cheat_day_requested_with_treats_available_adds_selection_rule(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 7 day meal plan with one cheat day",
+        food_context=FOODS_WITH_TREAT,
+    ))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "CHEAT DAY: Day 7 is a cheat day" in sel_prompt
+    assert "cheese pizza slice" in sel_prompt
+
+
+@pytest.mark.asyncio
+async def test_cheat_day_requested_with_treats_tells_prose_to_call_it_out(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 7 day meal plan with one cheat day",
+        food_context=FOODS_WITH_TREAT,
+    ))
+
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "Day 7 is it" in prose_prompt
+    assert "call this out explicitly" in prose_prompt
+
+
+@pytest.mark.asyncio
+async def test_cheat_day_requested_without_treats_available_has_no_selection_rule(use_fake):
+    """A diabetic/PCOS profile filters every treat item out at the food_agent
+    stage (see test_food_filter.py) -- food_context then carries no treat
+    items even though a cheat day was asked for. The selection prompt must
+    not tell the model to build a cheat day with nothing to build it from."""
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 7 day meal plan with one cheat day",
+        food_context=FOODS,  # no treat items
+    ))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "CHEAT DAY" not in sel_prompt
+
+
+@pytest.mark.asyncio
+async def test_cheat_day_requested_without_treats_tells_prose_to_explain_why(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 7 day meal plan with one cheat day",
+        food_context=FOODS,  # no treat items
+    ))
+
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "none of the approved treat-style foods were safe" in prose_prompt
+
+
+@pytest.mark.asyncio
+async def test_no_cheat_day_requested_adds_no_cheat_day_language(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 7 day meal plan",
+        food_context=FOODS_WITH_TREAT,  # treats available but not asked for
+    ))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "CHEAT DAY" not in sel_prompt
+    assert "cheat day" not in prose_prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_cheat_day_lands_on_the_last_requested_day(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        user_message="Generate a 3 day meal plan with a cheat day",
+        food_context=FOODS_WITH_TREAT,
+    ))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "CHEAT DAY: Day 3 is a cheat day" in sel_prompt
+
+
+@pytest.mark.asyncio
+async def test_plan_modification_prose_is_told_to_explain_allergy_refusals(use_fake):
+    """Regression: a modification request for an off-list food (e.g. 'add a
+    burger' for a milk-allergic user) got a technically-true but unhelpful
+    'wasn't in your approved foods list' refusal with no reason given."""
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        intent="PLAN_MODIFICATION",
+        user_message="Add a burger or pizza for the cheat day",
+        food_context=FOODS_WITH_TREAT,
+    ))
+
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "say that plainly" in prose_prompt
+    assert "milk allergy" in prose_prompt
+
+
+@pytest.mark.asyncio
+async def test_cheat_day_stays_active_on_a_later_turn_that_does_not_repeat_the_words(use_fake):
+    """Regression: a follow-up modification turn ('use fries instead') that
+    never repeats "cheat day" used to silently drop the cheat day from the
+    plan entirely -- food_context still carries the treat items from
+    food_agent_node (which is also now conversation-sticky), but
+    meal_plan_agent's own cheat_day_requested flag must independently agree,
+    or the CHEAT DAY rule never gets added to the selection prompt."""
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+    history = [
+        {"role": "user", "content": "Generate a 7 day plan with one cheat day"},
+        {"role": "assistant", "content": "Here is your plan with Day 7 as a cheat day."},
+    ]
+
+    await meal_plan_agent_node(_state(
+        intent="PLAN_MODIFICATION",
+        user_message="just use fries instead please",
+        food_context=FOODS_WITH_TREAT,
+        chat_history=history,
+    ))
+
+    sel_prompt = fake.calls[0]["messages"][0].content
+    assert "CHEAT DAY: Day 7 is a cheat day" in sel_prompt
+
+
+@pytest.mark.asyncio
+async def test_non_modification_prose_has_no_allergy_refusal_instruction(use_fake):
+    fake = use_fake([json.dumps(SELECTION), "prose"])
+
+    await meal_plan_agent_node(_state(
+        intent="MEAL_PLAN_REQUEST",
+        user_message="Generate a 7 day meal plan with one cheat day",
+        food_context=FOODS_WITH_TREAT,
+    ))
+
+    prose_prompt = fake.calls[1]["messages"][0].content
+    assert "wasn't on the approved list" not in prose_prompt

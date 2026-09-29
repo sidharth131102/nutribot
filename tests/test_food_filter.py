@@ -8,7 +8,15 @@ import pytest
 from backend.agents.food_agent import FOOD_LIST_SIZE
 from backend.eval.golden_set import GOLDEN_CASES
 from backend.tools.calorie_tool import compute_calories
-from backend.utils.food_filter import find_food, food_name_matches, get_filtered_foods
+from backend.utils.food_filter import (
+    TREAT_RESERVED_SLOTS,
+    TREAT_TAG,
+    find_food,
+    food_name_matches,
+    get_filtered_foods,
+    wants_cheat_day,
+    wants_cheat_day_in_conversation,
+)
 
 # Every meal slot of the day, in order; snacks appear twice because the plan
 # has two snack meals.
@@ -184,3 +192,141 @@ def test_find_food_prefers_exact_over_substring_match():
     assert find_food("dal", context)["id"] == "FOOD_012"
     assert find_food("Masoor Dal", context)["id"] == "FOOD_040"
     assert find_food("unicorn", context) is None
+
+
+# ── Cheat day / treat foods ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize("message,expected", [
+    ("Generate a 7 day meal plan with one cheat day", True),
+    ("Can I have a cheat meal this week?", True),
+    ("I want a cheat day on Saturday", True),
+    ("Give me a healthy 5 day meal plan", False),
+    ("", False),
+])
+def test_wants_cheat_day_parses(message, expected):
+    assert wants_cheat_day(message) == expected
+
+
+# ── Cheat day stays sticky across a follow-up conversation ──────────────────
+
+def test_wants_cheat_day_in_conversation_true_for_current_message():
+    assert wants_cheat_day_in_conversation("give me a cheat day plan", []) is True
+
+
+def test_wants_cheat_day_in_conversation_finds_it_in_earlier_user_turn():
+    """Regression: a follow-up like 'use fries instead' has no 'cheat day'
+    wording of its own -- checking only the current message silently forgot
+    the cheat day existed the moment the conversation moved past the turn
+    that first asked for it, dropping every treat food with no warning."""
+    history = [
+        {"role": "user", "content": "Generate a 7 day plan with one cheat day"},
+        {"role": "assistant", "content": "Here is your plan..."},
+    ]
+    assert wants_cheat_day_in_conversation("just use fries instead please", history) is True
+
+
+def test_wants_cheat_day_in_conversation_ignores_assistant_phrasing():
+    """Only user turns count -- the assistant's own summary of the plan
+    ('Day 7 is your cheat day') must not be what keeps re-triggering this."""
+    history = [
+        {"role": "assistant", "content": "Day 7 is your cheat day, enjoy!"},
+    ]
+    assert wants_cheat_day_in_conversation("make the portions bigger", history) is False
+
+
+def test_wants_cheat_day_in_conversation_false_when_never_mentioned():
+    history = [
+        {"role": "user", "content": "Generate a healthy 7 day plan"},
+        {"role": "assistant", "content": "Here is your plan..."},
+    ]
+    assert wants_cheat_day_in_conversation("make the portions bigger", history) is False
+
+
+def test_wants_cheat_day_in_conversation_handles_missing_content_en():
+    """Uses content_en when present (the pipeline's English form), falls
+    back to content (pre-multilingual messages have no content_en)."""
+    history = [{"role": "user", "content_en": "add a cheat day please", "content": "एक चीट डे जोड़ें"}]
+    assert wants_cheat_day_in_conversation("ok", history) is True
+
+
+def test_treats_excluded_by_default():
+    """A normal request must never see treat-tagged foods -- the whole
+    safety property of this feature rests on it being opt-in per request,
+    not a general widening of the food pool."""
+    profile = {"diet_type": "non_vegetarian", "allergies": [], "medical_conditions": []}
+    foods = get_filtered_foods(profile, limit=200)
+    assert not any(TREAT_TAG in {t.lower() for t in f.get("tags", [])} for f in foods)
+
+
+def test_include_treats_returns_treat_foods():
+    profile = {"diet_type": "non_vegetarian", "allergies": [], "medical_conditions": []}
+    foods = get_filtered_foods(profile, limit=40, include_treats=True)
+    treats = [f for f in foods if TREAT_TAG in {t.lower() for t in f.get("tags", [])}]
+    assert treats, "include_treats=True returned no treat-tagged foods at all"
+    assert len(treats) <= TREAT_RESERVED_SLOTS
+
+
+def test_include_treats_still_respects_allergens():
+    profile = {"diet_type": "non_vegetarian", "allergies": ["milk"], "medical_conditions": []}
+    foods = get_filtered_foods(profile, limit=200, include_treats=True)
+    for food in foods:
+        allergens = {a.lower() for a in food.get("allergens", [])}
+        assert "milk" not in allergens, f"{food['food']} contains a milk allergen but wasn't excluded"
+
+
+def test_include_treats_still_respects_diet_type():
+    """A vegan profile must never see the non_veg-only treats (burger,
+    butter chicken, egg-containing desserts)."""
+    profile = {"diet_type": "vegan", "allergies": [], "medical_conditions": []}
+    foods = get_filtered_foods(profile, limit=200, include_treats=True)
+    for food in foods:
+        diets = {d.lower() for d in food.get("diet_types", [])}
+        assert "vegan" in diets, f"{food['food']} is not vegan but reached a vegan profile"
+
+
+def test_include_treats_still_excludes_hypertension_avoid_items():
+    profile = {"diet_type": "non_vegetarian", "allergies": [], "medical_conditions": ["hypertension"]}
+    foods = get_filtered_foods(profile, limit=200, include_treats=True)
+    for food in foods:
+        assert "hypertension_avoid" not in set(food.get("medical_tags", []))
+
+
+def test_include_treats_still_gives_variety_to_a_milk_allergic_profile():
+    """Regression: 7 of the first 10 treat items added all contained milk,
+    so a milk-allergic user (a common real profile) was left with only
+    french fries -- effectively no cheat day at all. Dairy-free treats were
+    added specifically to fix this; a milk allergy must still leave a real
+    choice, not just one item."""
+    profile = {"diet_type": "non_vegetarian", "allergies": ["milk"], "medical_conditions": []}
+    foods = get_filtered_foods(profile, limit=40, include_treats=True)
+    treats = [f for f in foods if TREAT_TAG in {t.lower() for t in f.get("tags", [])}]
+    assert len(treats) >= 5, f"only {len(treats)} treat options survived a milk allergy: {[t['food'] for t in treats]}"
+
+
+def test_include_treats_yields_no_treats_for_diabetic_profile():
+    """Every treat item currently in the DB is glycemic_index=high, so a
+    diabetic/PCOS profile's absolute low-GI rule leaves zero treat options --
+    this is deliberate (medical safety is never relaxed for a cheat day), and
+    meal_plan_agent is expected to explain this gracefully rather than
+    silently produce a normal plan while claiming it's a cheat day."""
+    profile = {"diet_type": "non_vegetarian", "allergies": [], "medical_conditions": ["diabetes"]}
+    foods = get_filtered_foods(profile, limit=200, include_treats=True)
+    treats = [f for f in foods if TREAT_TAG in {t.lower() for t in f.get("tags", [])}]
+    assert treats == []
+
+
+def test_include_treats_does_not_change_non_treat_selection():
+    """The non-treat portion of the list should be exactly what a normal
+    (non-cheat) call would produce, just with treat slots added on top --
+    include_treats must not perturb the existing macro-balancing behaviour."""
+    profile = {"diet_type": "non_vegetarian", "allergies": [], "medical_conditions": []}
+    without = get_filtered_foods(profile, limit=40)
+    with_treats = get_filtered_foods(profile, limit=40, include_treats=True)
+    with_treats_non_treat_ids = {
+        f["id"] for f in with_treats if TREAT_TAG not in {t.lower() for t in f.get("tags", [])}
+    }
+    # Every non-treat id chosen alongside treats was also chosen without --
+    # the reserved treat slots crowd out the tail of the normal list, not
+    # replace its priorities.
+    without_ids = {f["id"] for f in without}
+    assert with_treats_non_treat_ids.issubset(without_ids)

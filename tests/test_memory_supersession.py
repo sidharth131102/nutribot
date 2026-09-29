@@ -87,6 +87,45 @@ async def test_medical_history_facts_coexist(two_users):
     assert all(f["status"] == "active" for f in active)
 
 
+# ── Reserved medical-history quota ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_medical_history_gets_a_reserved_quota_even_when_older(two_users):
+    """5 chat-derived facts followed by 2 document-derived medical facts --
+    a flat recency cutoff of 5 would drop both medical facts entirely."""
+    repo_a, _ = two_users
+    for i in range(5):
+        await repo_a.add_memory_fact(f"Preference {i}", "preference")
+    await repo_a.add_memory_fact("Diagnosed with type 2 diabetes in 2019", "medical_history")
+    await repo_a.add_memory_fact("Allergic to peanuts", "medical_history")
+
+    active = await repo_a.get_active_memories(limit=5, medical_limit=3)
+    categories = [f["category"] for f in active]
+    assert categories.count("medical_history") == 2
+    assert len(active) == 5
+
+
+@pytest.mark.asyncio
+async def test_medical_history_quota_is_capped(two_users):
+    repo_a, _ = two_users
+    for i in range(5):
+        await repo_a.add_memory_fact(f"Medical fact {i}", "medical_history")
+
+    active = await repo_a.get_active_memories(limit=5, medical_limit=3)
+    assert sum(1 for f in active if f["category"] == "medical_history") == 3
+
+
+@pytest.mark.asyncio
+async def test_other_facts_fill_remaining_budget_when_no_medical_history(two_users):
+    repo_a, _ = two_users
+    for i in range(5):
+        await repo_a.add_memory_fact(f"Preference {i}", "preference")
+
+    active = await repo_a.get_active_memories(limit=5, medical_limit=3)
+    assert len(active) == 5
+    assert all(f["category"] == "preference" for f in active)
+
+
 # ── Cross-user isolation ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

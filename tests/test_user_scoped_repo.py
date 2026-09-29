@@ -148,3 +148,34 @@ async def test_log_access_is_scoped_per_user(two_users, db):
     assert audit_a[0]["data_type"] == "medical_conditions_allergies"
     assert audit_a[0]["trace_id"] == "t1"
     assert len(audit_b) == 0
+
+
+# ── delete_session ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_delete_session_removes_it_and_its_messages(two_users):
+    repo_a, _ = two_users
+    await repo_a.append_messages("s1", [{"role": "user", "content": "hi"}])
+    assert len(await repo_a.get_user_sessions()) == 1
+
+    deleted = await repo_a.delete_session("s1")
+
+    assert deleted is True
+    assert await repo_a.get_user_sessions() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_session_returns_false_for_unknown_session(two_users):
+    repo_a, _ = two_users
+    assert await repo_a.delete_session("does-not-exist") is False
+
+
+@pytest.mark.asyncio
+async def test_delete_session_cannot_delete_another_users_session(two_users):
+    repo_a, repo_b = two_users
+    await repo_b.append_messages("shared-looking-id", [{"role": "user", "content": "B's message"}])
+
+    deleted = await repo_a.delete_session("shared-looking-id")
+
+    assert deleted is False
+    assert len(await repo_b.get_user_sessions()) == 1  # untouched

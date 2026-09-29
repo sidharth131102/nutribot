@@ -58,7 +58,7 @@ def test_scan_still_detects_whole_word_nut_allergen():
 
 @pytest.mark.asyncio
 async def test_check_output_fails_open_on_provider_error(monkeypatch):
-    def _raise():
+    def _raise(name=None):
         raise RuntimeError("provider unavailable")
 
     monkeypatch.setattr("backend.guardrails.output_check.get_provider", _raise)
@@ -79,7 +79,7 @@ async def test_check_output_handles_malformed_issues_type(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_output("some response", None, [], [], [])
 
@@ -97,7 +97,7 @@ async def test_check_output_allergen_hit_overrides_llm_safe(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_output("This includes peanuts.", None, [], ["peanuts"], [])
 
@@ -114,7 +114,7 @@ async def test_check_output_llm_unsafe_result(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_output("You definitely have diabetes.", None, [], [], ["diabetes"])
 
@@ -131,7 +131,7 @@ async def test_check_output_safe_when_no_issues(monkeypatch):
         async def generate(self, **kwargs):
             return _FakeResult()
 
-    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda: _FakeProvider())
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
 
     result = await check_output("Here's a balanced breakfast idea.", None, [], [], [])
 
@@ -218,3 +218,60 @@ def test_scan_ignores_trailing_free_negation():
     assert _scan_allergens_in_prose("Nut free snacks only.", ["nut"]) == []
     # ...but "soy" followed by anything else is still a hit.
     assert _scan_allergens_in_prose("Add soy sauce to the stir-fry.", ["soy"]) == ["soy"]
+
+# ── fast_call_provider pinning ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_check_output_uses_primary_when_fast_call_provider_unset(monkeypatch):
+    from backend.config import Settings
+
+    class _FakeResult:
+        text = '{"safe": true, "issues": [], "feedback": ""}'
+
+    seen = {}
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    def _get_provider(name=None):
+        seen["name"] = name
+        return _FakeProvider()
+
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", _get_provider)
+    monkeypatch.setattr(
+        "backend.guardrails.output_check.get_settings",
+        lambda: Settings(_env_file=None, fast_call_provider=""),
+    )
+
+    await check_output("Here's a balanced breakfast idea.", None, [], [], [])
+
+    assert seen["name"] is None
+
+
+@pytest.mark.asyncio
+async def test_check_output_pins_to_configured_fast_call_provider(monkeypatch):
+    from backend.config import Settings
+
+    class _FakeResult:
+        text = '{"safe": true, "issues": [], "feedback": ""}'
+
+    seen = {}
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    def _get_provider(name=None):
+        seen["name"] = name
+        return _FakeProvider()
+
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", _get_provider)
+    monkeypatch.setattr(
+        "backend.guardrails.output_check.get_settings",
+        lambda: Settings(_env_file=None, fast_call_provider="azure_openai_challenger"),
+    )
+
+    await check_output("Here's a balanced breakfast idea.", None, [], [], [])
+
+    assert seen["name"] == "azure_openai_challenger"

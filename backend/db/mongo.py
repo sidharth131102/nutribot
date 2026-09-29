@@ -191,6 +191,15 @@ class UserScopedRepo:
             })
         return result
 
+    async def delete_session(self, session_id: str) -> bool:
+        """Delete one chat session (and its messages) for this user only.
+        Returns False if no such session exists for this user -- the caller
+        turns that into a 404 rather than silently succeeding."""
+        result = await self._db.chat_sessions.delete_one(
+            {"user_id": self.user_id, "session_id": session_id}
+        )
+        return result.deleted_count > 0
+
     async def get_chat_history(self, n: int = 20) -> list[dict[str, Any]]:
         """Last n messages from this user's most recently active session."""
         cursor = self._db.chat_sessions.find(
@@ -297,13 +306,31 @@ class UserScopedRepo:
             {"$set": {"status": "superseded"}},
         )
 
-    async def get_active_memories(self, limit: int = 3) -> list[dict[str, Any]]:
-        cursor = self._db.memories.find(
-            {"user_id": self.user_id, "status": "active"},
+    async def get_active_memories(self, limit: int = 5, medical_limit: int = 3) -> list[dict[str, Any]]:
+        """Top-N active long-term facts, with a fixed sub-quota reserved for
+        medical_history facts (extracted from uploaded documents). These are
+        safety-relevant, coexist rather than superseding each other, and were
+        previously getting silently crowded out of a flat recency cutoff by
+        newer but less consequential chat-derived facts (preferences, goal
+        changes, ...)."""
+        medical_cursor = self._db.memories.find(
+            {"user_id": self.user_id, "status": "active", "category": "medical_history"},
             sort=[("created_at", -1)],
-            limit=limit,
+            limit=medical_limit,
         )
-        return await cursor.to_list(length=limit)
+        medical = await medical_cursor.to_list(length=medical_limit)
+
+        other_limit = max(limit - len(medical), 0)
+        other: list[dict[str, Any]] = []
+        if other_limit:
+            other_cursor = self._db.memories.find(
+                {"user_id": self.user_id, "status": "active", "category": {"$ne": "medical_history"}},
+                sort=[("created_at", -1)],
+                limit=other_limit,
+            )
+            other = await other_cursor.to_list(length=other_limit)
+
+        return medical + other
 
     # ── Episodic events ──────────────────────────────────────────────────────
 

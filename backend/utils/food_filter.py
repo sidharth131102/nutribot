@@ -71,10 +71,59 @@ def _is_condition_safe(food: dict[str, Any], conditions: set[str]) -> bool:
     return True
 
 
+_CHEAT_DAY_RE = re.compile(r"\bcheat\s*(day|meal)s?\b", re.IGNORECASE)
+
+
+def wants_cheat_day(user_message: str) -> bool:
+    """Whether the user's message asks for a cheat day/meal. Deterministic
+    keyword match, not an LLM call, for the same reason _requested_day_count
+    (backend/agents/meal_plan_agent.py) is: cheap, instant, and testable in
+    isolation. Shared by food_agent_node (widens the food pool) and
+    meal_plan_agent (picks which day and how to phrase the selection rule)."""
+    return bool(_CHEAT_DAY_RE.search(user_message or ""))
+
+
+def wants_cheat_day_in_conversation(user_message: str, chat_history: list[dict[str, Any]] | None) -> bool:
+    """wants_cheat_day(), but sticky across a modification conversation.
+
+    A cheat day is usually requested once ("...with one cheat day") and then
+    refined over several follow-up turns ("use fries instead", "make it
+    spicier") that never repeat the words "cheat day" -- checking only the
+    current message made the system silently forget the cheat day existed
+    the moment the conversation moved past the turn that first asked for it,
+    dropping every treat food from the plan with no explanation. Only USER
+    turns are scanned (the assistant's own phrasing, e.g. "Day 7 is your
+    cheat day", shouldn't be what re-triggers this every subsequent turn).
+    Naturally bounded by the session's chat_history window -- a new chat
+    session starts with empty history, so this doesn't leak across
+    unrelated conversations."""
+    if wants_cheat_day(user_message):
+        return True
+    for msg in chat_history or []:
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content_en") or msg.get("content") or ""
+        if wants_cheat_day(content):
+            return True
+    return False
+
+
+TREAT_TAG = "treat"
+# Reserved slots for treat-tagged items when include_treats=True. A fixed
+# count (not a share of `limit`) so a cheat day reliably gets real indulgent
+# options regardless of `limit`, while every other call's food list length
+# and composition stays byte-for-byte unchanged (include_treats defaults to
+# False, and when False treat items never enter `filtered` at all -- a
+# regular week can never surface pizza or ice cream just because the general
+# selection algorithm happened to have room).
+TREAT_RESERVED_SLOTS = 16
+
+
 def get_filtered_foods(
     user_profile: dict[str, Any],
     meal_type: str | None = None,
     limit: int = 80,
+    include_treats: bool = False,
 ) -> list[dict[str, Any]]:
     """Return foods filtered and ranked for the given user profile.
 
@@ -84,10 +133,19 @@ def get_filtered_foods(
     the list handed to the model can physically reach the calorie target at
     every meal of the day.
 
+    `include_treats` is for a cheat day: it lifts the (otherwise absolute)
+    exclusion of treat-tagged foods and reserves TREAT_RESERVED_SLOTS of the
+    result for them, on top of the normal slot-aware selection -- diet type,
+    allergens, and medical-condition safety still apply to treats exactly as
+    they do to every other food, so a cheat day can never surface someone's
+    allergen or violate a medical exclusion, it only widens which *otherwise
+    safe* foods are on the table.
+
     Args:
         user_profile: The full user profile dict.
         meal_type: Optional filter by meal type (breakfast/lunch/dinner/snack).
         limit: Maximum number of foods to return.
+        include_treats: Whether to include treat-tagged (indulgent) foods.
 
     Returns:
         List of food dicts from food_db.json that pass all filters.
@@ -101,7 +159,12 @@ def get_filtered_foods(
     needs_low_gi = bool(LOW_GI_CONDITIONS.intersection(conditions))
 
     filtered: list[dict[str, Any]] = []
+    treats: list[dict[str, Any]] = []
     for food in foods:
+        is_treat = TREAT_TAG in {t.lower() for t in food.get("tags", [])}
+        if is_treat and not include_treats:
+            continue
+
         # Diet type check
         food_diets = {d.lower() for d in food.get("diet_types", [])}
         if diet_key not in food_diets:
@@ -122,18 +185,24 @@ def get_filtered_foods(
             if meal_type.lower() not in food_meal_types:
                 continue
 
-        # Low GI enforcement for diabetics/PCOS
+        # Low GI enforcement for diabetics/PCOS -- still applies to treats:
+        # a cheat day relaxes food "purity", never a medical safety bound.
         if needs_low_gi:
             gi = (food.get("glycemic_index") or "").lower()
             if gi and gi not in LOW_GI_VALUES and gi != "medium":
                 continue
 
-        filtered.append(food)
+        (treats if is_treat else filtered).append(food)
 
     # An explicit meal_type filter means the caller wants one slot's foods,
     # so the per-slot quota pass below would be meaningless -- just balance.
     if meal_type:
-        return _select_balanced(filtered, limit, needs_low_gi)
+        pool = filtered + treats
+        return _select_balanced(pool, limit, needs_low_gi)
+
+    reserved_treats = _select_balanced(treats, TREAT_RESERVED_SLOTS, needs_low_gi) if include_treats else []
+    reserved_ids = {f["id"] for f in reserved_treats}
+    remaining_limit = max(limit - len(reserved_treats), 0)
 
     # Slot-aware selection. Before this, a single macro-balanced pass over
     # the whole list handed a non-veg muscle-gain profile 19 lunch/dinner
@@ -142,9 +211,9 @@ def get_filtered_foods(
     # every day undershot the calorie target by 25-35% because there was
     # nothing calorie-dense to fill the small meals with.
     selected: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    seen: set[str] = set(reserved_ids)
     for slot, share in SLOT_SHARE.items():
-        quota = round(limit * share)
+        quota = round(remaining_limit * share)
         candidates = [
             f for f in filtered
             if f["id"] not in seen and slot in {m.lower() for m in f.get("meal_types", [])}
@@ -155,11 +224,11 @@ def get_filtered_foods(
 
     # Slot quotas that couldn't be filled (a niche profile with few breakfast
     # foods, say) leave room -- top up from whatever is left, still balanced.
-    if len(selected) < limit:
+    if len(selected) < remaining_limit:
         remaining = [f for f in filtered if f["id"] not in seen]
-        selected.extend(_select_balanced(remaining, limit - len(selected), needs_low_gi))
+        selected.extend(_select_balanced(remaining, remaining_limit - len(selected), needs_low_gi))
 
-    return selected[:limit]
+    return (reserved_treats + selected)[:limit]
 
 
 # Share of the list reserved for each meal slot. Lunch and dinner overlap

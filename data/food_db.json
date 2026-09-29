@@ -3965,5 +3965,492 @@
       "plant_protein",
       "gluten_free"
     ]
+  },
+  {
+    "id": "FOOD_124",
+    "food": "cheese pizza slice",
+    "quantity_grams": 120,
+    "calories": 300,
+    "protein": 12,
+    "carbs": 34,
+    "fat": 12,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_125",
+    "food": "chocolate brownie",
+    "quantity_grams": 60,
+    "calories": 260,
+    "protein": 3,
+    "carbs": 35,
+    "fat": 13,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk",
+      "egg"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent",
+      "dessert"
+    ]
+  },
+  {
+    "id": "FOOD_126",
+    "food": "vegetable samosa (fried)",
+    "quantity_grams": 90,
+    "calories": 260,
+    "protein": 5,
+    "carbs": 28,
+    "fat": 14,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_127",
+    "food": "gulab jamun",
+    "quantity_grams": 80,
+    "calories": 300,
+    "protein": 4,
+    "carbs": 45,
+    "fat": 12,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent",
+      "dessert"
+    ]
+  },
+  {
+    "id": "FOOD_128",
+    "food": "classic cheeseburger",
+    "quantity_grams": 220,
+    "calories": 550,
+    "protein": 27,
+    "carbs": 40,
+    "fat": 30,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_129",
+    "food": "french fries",
+    "quantity_grams": 100,
+    "calories": 310,
+    "protein": 4,
+    "carbs": 40,
+    "fat": 15,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_130",
+    "food": "butter chicken with naan",
+    "quantity_grams": 350,
+    "calories": 620,
+    "protein": 32,
+    "carbs": 48,
+    "fat": 33,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_131",
+    "food": "chocolate milkshake",
+    "quantity_grams": 300,
+    "calories": 380,
+    "protein": 9,
+    "carbs": 55,
+    "fat": 14,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent",
+      "dessert"
+    ]
+  },
+  {
+    "id": "FOOD_132",
+    "food": "vanilla ice cream",
+    "quantity_grams": 100,
+    "calories": 210,
+    "protein": 4,
+    "carbs": 24,
+    "fat": 11,
+    "diet_types": [
+      "veg",
+      "non_veg"
+    ],
+    "allergens": [
+      "milk"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent",
+      "dessert"
+    ]
+  },
+  {
+    "id": "FOOD_133",
+    "food": "chocolate chip pancakes with syrup",
+    "quantity_grams": 200,
+    "calories": 480,
+    "protein": 9,
+    "carbs": 70,
+    "fat": 18,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "milk",
+      "egg"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "breakfast"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_134",
+    "food": "vada pav",
+    "quantity_grams": 150,
+    "calories": 340,
+    "protein": 7,
+    "carbs": 48,
+    "fat": 13,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_135",
+    "food": "chicken 65 (spicy fried)",
+    "quantity_grams": 150,
+    "calories": 320,
+    "protein": 26,
+    "carbs": 16,
+    "fat": 17,
+    "diet_types": [
+      "non_veg"
+    ],
+    "allergens": [
+      "egg"
+    ],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack",
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_136",
+    "food": "bhel puri",
+    "quantity_grams": 150,
+    "calories": 250,
+    "protein": 6,
+    "carbs": 40,
+    "fat": 8,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "indian"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_137",
+    "food": "potato chips (salted)",
+    "quantity_grams": 50,
+    "calories": 270,
+    "protein": 3,
+    "carbs": 27,
+    "fat": 17,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [
+      "hypertension_avoid"
+    ],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_138",
+    "food": "falafel wrap",
+    "quantity_grams": 220,
+    "calories": 420,
+    "protein": 14,
+    "carbs": 50,
+    "fat": 18,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [
+      "wheat",
+      "sesame"
+    ],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "lunch",
+      "dinner"
+    ],
+    "glycemic_index": "medium",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent"
+    ]
+  },
+  {
+    "id": "FOOD_139",
+    "food": "mango sorbet",
+    "quantity_grams": 100,
+    "calories": 140,
+    "protein": 1,
+    "carbs": 34,
+    "fat": 0,
+    "diet_types": [
+      "veg",
+      "vegan",
+      "non_veg"
+    ],
+    "allergens": [],
+    "regions": [
+      "global"
+    ],
+    "meal_types": [
+      "snack",
+      "dinner"
+    ],
+    "glycemic_index": "high",
+    "medical_tags": [],
+    "tags": [
+      "treat",
+      "indulgent",
+      "dessert"
+    ]
   }
 ]

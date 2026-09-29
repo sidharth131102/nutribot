@@ -18,7 +18,7 @@ async def memory_retrieval_agent_node(state: NutriBotState) -> NutriBotState:
     repo = UserScopedRepo(get_db(), user_id)
 
     try:
-        relevant_memories = await repo.get_active_memories(limit=3)
+        relevant_memories = await repo.get_active_memories()
         recent_events = await repo.get_recent_events(limit=2)
     except Exception:
         logger.exception("Memory retrieval failed for user_id=%s", user_id)

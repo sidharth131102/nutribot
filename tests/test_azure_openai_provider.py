@@ -134,3 +134,64 @@ async def test_result_reports_provider_name_and_chosen_deployment():
     assert result.provider == "azure_openai_challenger"
     assert result.model == "dep-fast"
     assert result.text == "ok"
+
+
+# ── Content filter detection/translation ──────────────────────────────────
+
+from backend.llm.azure_openai_provider import _raise_if_content_filtered
+from backend.llm.base import ContentFilterBlocked
+
+
+def test_raise_if_content_filtered_is_a_noop_for_unrelated_errors():
+    exc = RuntimeError("connection reset")
+    _raise_if_content_filtered(exc)  # must not raise
+
+
+def test_raise_if_content_filtered_parses_flagged_categories():
+    # Shape of the real Azure error body (see the docstring in
+    # azure_openai_provider.py) -- self_harm flagged, others not.
+    body = (
+        "Error code: 400 - {'error': {'code': 'content_filter', 'innererror': "
+        "{'content_filter_result': {'hate': {'filtered': False, 'severity': 'safe'}, "
+        "'self_harm': {'filtered': True, 'severity': 'medium'}, "
+        "'sexual': {'filtered': False, 'severity': 'safe'}, "
+        "'violence': {'filtered': False, 'severity': 'safe'}}}}}"
+    )
+    with pytest.raises(ContentFilterBlocked) as exc_info:
+        _raise_if_content_filtered(RuntimeError(body))
+    assert exc_info.value.flagged_categories == ["self_harm"]
+
+
+def test_raise_if_content_filtered_preserves_the_original_as_cause():
+    original = RuntimeError("content_filter: self_harm flagged 'self_harm': {'filtered': True}")
+    with pytest.raises(ContentFilterBlocked) as exc_info:
+        _raise_if_content_filtered(original)
+    assert exc_info.value.__cause__ is original
+
+
+@pytest.mark.asyncio
+async def test_generate_translates_a_content_filter_error(monkeypatch):
+    class _RaisingAzureChatOpenAI(_FakeAzureChatOpenAI):
+        async def ainvoke(self, messages):
+            raise RuntimeError(
+                "Error code: 400 - {'error': {'code': 'content_filter', 'innererror': "
+                "{'content_filter_result': {'self_harm': {'filtered': True, 'severity': 'medium'}}}}}"
+            )
+
+    monkeypatch.setattr(azure_openai_provider, "AzureChatOpenAI", _RaisingAzureChatOpenAI)
+
+    with pytest.raises(ContentFilterBlocked) as exc_info:
+        await _generate(_provider(reasoning_model=True), "fast")
+    assert exc_info.value.flagged_categories == ["self_harm"]
+
+
+@pytest.mark.asyncio
+async def test_generate_propagates_unrelated_errors_unchanged(monkeypatch):
+    class _RaisingAzureChatOpenAI(_FakeAzureChatOpenAI):
+        async def ainvoke(self, messages):
+            raise TimeoutError("upstream timed out")
+
+    monkeypatch.setattr(azure_openai_provider, "AzureChatOpenAI", _RaisingAzureChatOpenAI)
+
+    with pytest.raises(TimeoutError):
+        await _generate(_provider(reasoning_model=True), "fast")

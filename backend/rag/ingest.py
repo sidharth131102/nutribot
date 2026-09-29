@@ -26,6 +26,7 @@ PDF_METADATA: dict[str, dict[str, str]] = {
     "hypertension_diet": {"condition": "hypertension", "type": "medical"},
     "indian_diet_guidelines": {"condition": "general", "type": "dietary"},
     "protein_requirements": {"condition": "general", "type": "macro"},
+    "cheat_meals_guidelines": {"condition": "general", "type": "dietary"},
 }
 
 

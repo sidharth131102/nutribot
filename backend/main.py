@@ -1,18 +1,20 @@
 """FastAPI application entry point — NutriBot API."""
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Any
 
 import bcrypt as _bcrypt
 from bson import ObjectId
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import ValidationError
 
 from backend.agents.email_agent import deliver_plan_email
-from backend.agents.graph import run_chat_pipeline
+from backend.agents.graph import run_chat_pipeline, stream_chat_pipeline
 from backend.agents.memory_agent import save_accepted_plan
 from backend.auth.google_oauth import exchange_code_for_token, get_google_user_info
 from backend.auth.jwt_handler import create_access_token, get_current_user_id
@@ -311,42 +313,58 @@ async def update_profile(
 
 # ── /api/chat ─────────────────────────────────────────────────────────────────
 
-@app.post("/api/chat/message", response_model=ChatResponse)
-async def chat_message(
-    payload: ChatRequest,
-    user_id: str = Depends(get_current_user_id),
-    _: None = Depends(chat_message_rate_limit),
-):
-    trace_id_var.set(new_trace_id())
-    repo = UserScopedRepo(get_db(), user_id)
+def _content_for_history(result: dict[str, Any]) -> str:
+    """The text stored in `content_en` -- what gets replayed as pipeline
+    context on every future turn (chat_memory_window messages, into two
+    separate generation calls for a plan turn: see meal_plan_agent.py).
 
-    if payload.user_id != user_id:
-        raise HTTPException(status_code=403, detail="User ID mismatch")
+    A plan turn's full response is prose + an entire day-by-day table
+    (easily 1,500-3,000+ tokens); replaying that verbatim on every later
+    turn is how a session with a few plans in it snowballs into tens of
+    thousands of tokens per turn. Only the table is dropped here -- the
+    prose (personality, what was actually said) is kept so future turns
+    still have real conversational continuity. `content` (the user-facing
+    field, used to redisplay an old session) always keeps the full text;
+    this only thins what the model itself re-reads.
+    """
+    response = result.get("response", "")
+    parts = result.get("response_parts")
+    if not parts:
+        return response
+    full = f"{parts['prose']}\n\n{parts['plan_markdown']}\n\n{parts['accept_prompt']}"
+    if full != response:
+        # The output guardrail replaced the response wholesale (regeneration
+        # fallback) -- response_parts no longer describes it, don't trust it.
+        return response
 
-    # Verify profile is complete
-    user = await repo.get_user()
-    if not user or not user.get("profile_complete"):
-        raise HTTPException(
-            status_code=400,
-            detail="Profile not complete. Please complete your profile first.",
-        )
-
-    # Translate-at-the-edges (backend/speech/multilingual.py): the pipeline
-    # only ever sees English; the reply goes back in the message's language.
-    settings = get_settings()
-    inbound = await multilingual.inbound(settings, payload.message, payload.language)
-
-    result = await run_chat_pipeline(
-        user_id=user_id,
-        session_id=payload.session_id,
-        user_message=inbound.english_text,
+    plan = result.get("proposed_plan") or {}
+    days = len(plan.get("days") or [])
+    target = plan.get("calorie_target")
+    marker = (
+        f"(a {days}-day meal plan was generated here, ~{target:.0f} kcal/day target — full plan omitted from history)"
+        if days and target
+        else "(a meal plan was generated here — full plan omitted from history)"
     )
-    response_en = result.get("response", "")
+    return f"{parts['prose']}\n\n{marker}"
+
+
+async def _finalize_chat_response(
+    payload: ChatRequest,
+    repo: UserScopedRepo,
+    inbound: Any,
+    result: dict[str, Any],
+) -> ChatResponse:
+    """Shared tail of both the plain and streaming chat endpoints: translate
+    the pipeline's English result back to the user's language, persist both
+    sides of the turn, and build the response payload. Both endpoints must
+    return byte-for-byte the same ChatResponse shape, so this lives in one
+    place rather than two copies that could quietly drift apart."""
+    settings = get_settings()
     response_out = await multilingual.outbound(settings, result, inbound.language)
 
-    # Persist messages to MongoDB: `content` is what the user saw (their own
-    # language), `content_en` is what the pipeline processed -- the context
-    # builder feeds `content_en` back into later turns.
+    # `content` is what the user saw (their own language), `content_en` is
+    # what the pipeline processed -- the context builder feeds `content_en`
+    # back into later turns.
     now = datetime.utcnow().isoformat()
     await repo.append_messages(
         payload.session_id,
@@ -361,7 +379,7 @@ async def chat_message(
             {
                 "role": "assistant",
                 "content": response_out,
-                "content_en": response_en,
+                "content_en": _content_for_history(result),
                 "language": inbound.language,
                 "timestamp": now,
             },
@@ -377,6 +395,88 @@ async def chat_message(
         rag_sources=result.get("rag_sources", []),
         language=inbound.language,
         message_english=inbound.english_text if inbound.translated else None,
+    )
+
+
+async def _authorize_chat_request(payload: ChatRequest, user_id: str, repo: UserScopedRepo) -> None:
+    if payload.user_id != user_id:
+        raise HTTPException(status_code=403, detail="User ID mismatch")
+    user = await repo.get_user()
+    if not user or not user.get("profile_complete"):
+        raise HTTPException(
+            status_code=400,
+            detail="Profile not complete. Please complete your profile first.",
+        )
+
+
+@app.post("/api/chat/message", response_model=ChatResponse)
+async def chat_message(
+    payload: ChatRequest,
+    user_id: str = Depends(get_current_user_id),
+    _: None = Depends(chat_message_rate_limit),
+):
+    trace_id_var.set(new_trace_id())
+    repo = UserScopedRepo(get_db(), user_id)
+    await _authorize_chat_request(payload, user_id, repo)
+
+    # Translate-at-the-edges (backend/speech/multilingual.py): the pipeline
+    # only ever sees English; the reply goes back in the message's language.
+    settings = get_settings()
+    inbound = await multilingual.inbound(settings, payload.message, payload.language)
+
+    result = await run_chat_pipeline(
+        user_id=user_id,
+        session_id=payload.session_id,
+        user_message=inbound.english_text,
+    )
+    return await _finalize_chat_response(payload, repo, inbound, result)
+
+
+@app.post("/api/chat/message/stream")
+async def chat_message_stream(
+    payload: ChatRequest,
+    user_id: str = Depends(get_current_user_id),
+    _: None = Depends(chat_message_rate_limit),
+):
+    """Server-Sent Events version of /api/chat/message. Emits a `progress`
+    event as each pipeline stage completes (real stage completions, not a
+    fake timer), then one `done` event carrying the exact same JSON body
+    /api/chat/message returns. See stream_chat_pipeline()'s docstring for why
+    this streams stage progress rather than raw model tokens: the output
+    guardrail must see a complete response before it can pass or reject it,
+    so token-level streaming would risk showing the user text that's about
+    to be retracted."""
+    trace_id_var.set(new_trace_id())
+    repo = UserScopedRepo(get_db(), user_id)
+    await _authorize_chat_request(payload, user_id, repo)
+
+    settings = get_settings()
+    inbound = await multilingual.inbound(settings, payload.message, payload.language)
+
+    async def event_source():
+        final_state: dict[str, Any] = {}
+        try:
+            async for event in stream_chat_pipeline(
+                user_id=user_id,
+                session_id=payload.session_id,
+                user_message=inbound.english_text,
+            ):
+                if event["type"] == "progress":
+                    yield f"event: progress\ndata: {json.dumps({'label': event['label']})}\n\n"
+                else:
+                    final_state = event["state"]
+
+            chat_response = await _finalize_chat_response(payload, repo, inbound, final_state)
+            yield f"event: done\ndata: {chat_response.model_dump_json()}\n\n"
+        except Exception:
+            logger.exception("Streaming chat pipeline failed")
+            error_payload = json.dumps({"detail": "Something went wrong generating a response. Please try again."})
+            yield f"event: error\ndata: {error_payload}\n\n"
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
@@ -419,6 +519,14 @@ async def list_spoken_languages(_: str = Depends(get_current_user_id)):
 async def list_sessions(user_id: str = Depends(get_current_user_id)):
     sessions = await UserScopedRepo(get_db(), user_id).get_user_sessions()
     return {"sessions": sessions}
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_session(session_id: str, user_id: str = Depends(get_current_user_id)):
+    deleted = await UserScopedRepo(get_db(), user_id).delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"status": "deleted"}
 
 
 @app.get("/api/chat/history", response_model=HistoryResponse)

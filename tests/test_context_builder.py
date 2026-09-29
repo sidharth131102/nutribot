@@ -53,6 +53,28 @@ def test_memory_context_empty_when_no_memories():
     assert context.memory_context == ""
 
 
+def test_memory_context_groups_medical_history_under_its_own_heading():
+    state = _base_state(relevant_memories=[
+        {"fact": "Allergic to peanuts", "category": "medical_history"},
+        {"fact": "Dislikes oats", "category": "preference"},
+    ])
+    context = build_context(state)
+    assert "Medical history (from uploaded documents):" in context.memory_context
+    assert "Other remembered context:" in context.memory_context
+    medical_idx = context.memory_context.index("Allergic to peanuts")
+    other_idx = context.memory_context.index("Dislikes oats")
+    assert medical_idx < other_idx  # medical facts surface first
+
+
+def test_memory_context_handles_facts_without_a_category():
+    """Pre-existing facts (or test fixtures) may lack a category field --
+    must not crash, and should fall into the general section."""
+    state = _base_state(relevant_memories=[{"fact": "Dislikes oats"}])
+    context = build_context(state)
+    assert "Other remembered context:" in context.memory_context
+    assert "Dislikes oats" in context.memory_context
+
+
 def test_episodic_context_formats_goal_change():
     state = _base_state(recent_events=[
         {"event_type": "goal_change", "details": {"new_goal": "muscle_gain"}, "timestamp": datetime(2026, 1, 1)},
