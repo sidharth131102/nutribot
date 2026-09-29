@@ -54,6 +54,37 @@ def test_scan_still_detects_whole_word_nut_allergen():
     assert _scan_allergens_in_prose("This recipe includes cashews and walnuts (nut).", ["nut"]) == ["nut"]
 
 
+# ── "allergic to X" / "X allergy" negation (production finding) ─────────────
+# A milk-allergic user asked a plain protein question; the model correctly
+# steered them away from dairy sources, and the scan blocked its own correct
+# answer because "allergic"/"allergy" weren't recognised as negation
+# language -- only "avoid"/"without"/etc were.
+
+def test_scan_ignores_allergic_to_phrasing():
+    text = "Since you're allergic to milk, focus on chicken, fish, and lentils for protein instead."
+    assert _scan_allergens_in_prose(text, ["milk"]) == []
+
+
+def test_scan_ignores_trailing_allergy_phrasing():
+    # The allergy word lands AFTER the allergen here, same asymmetry the
+    # trailing "-free" case already handles.
+    text = "Because of your milk allergy, dairy-based proteins like whey aren't a good fit."
+    assert _scan_allergens_in_prose(text, ["milk"]) == []
+
+
+def test_scan_ignores_sensitivity_and_intolerance_phrasing():
+    assert _scan_allergens_in_prose("Given your soy sensitivity, tofu is best avoided.", ["soy"]) == []
+    assert _scan_allergens_in_prose("A shellfish intolerance means skipping shrimp and crab.", ["shellfish"]) == []
+
+
+def test_scan_still_flags_a_genuine_recommendation_despite_nearby_allergy_word():
+    # Guard against the fix being too broad: an *unrelated* mention of the
+    # word "allergy" elsewhere in the response must not blanket-suppress a
+    # real recommendation of the allergen far away from it.
+    text = "Allergy season aside, " + ("x" * 40) + " try adding milk to your smoothie for extra protein."
+    assert _scan_allergens_in_prose(text, ["milk"]) == ["milk"]
+
+
 # ── check_output: fail-open + combined safety logic ──────────────────────────
 
 @pytest.mark.asyncio

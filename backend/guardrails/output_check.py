@@ -24,13 +24,24 @@ logger = logging.getLogger("nutribot.guardrails.output")
 
 # Negation words within this many characters before a match don't count as a
 # hit -- "avoid peanuts" is correct safety language, not an allergen leak.
+# Also covers explaining *why* something is avoided ("allergic to milk",
+# "your soy sensitivity") -- caught live in production: a real milk-allergic
+# user asking a plain protein question got the model correctly steering them
+# away from dairy, and the scan blocked its own correct answer because
+# "allergic"/"allergy" weren't recognised as negation language, only
+# "avoid"/"without"/etc were.
 _NEGATION_LOOKBACK_CHARS = 20
-_NEGATION_RE = re.compile(r"\b(avoid|avoiding|no|not|without|skip|skipping|exclude|excluding|free of)\b")
-# "...-free" / "... free" right AFTER the allergen ("soy-free", "nut free
-# snacks") is the same safety language with the negation on the other side;
-# the lookback above can't see it, and it fired on a soy-allergy plan whose
-# prose said "soy-free" (caught in the eval harness).
-_TRAILING_FREE_RE = re.compile(r"^[\s-]*free\b")
+_NEGATION_RE = re.compile(
+    r"\b(avoid|avoiding|no|not|without|skip|skipping|exclude|excluding|free of|"
+    r"allergic|allergy|allergies|sensitive|sensitivity|intolerant|intolerance|"
+    r"steer clear|stay away|instead of|rather than|in place of)\b"
+)
+# The same negation words right AFTER the allergen ("soy-free", "nut free
+# snacks", "milk allergy", "dairy sensitivity") are the same safety language
+# with the negation on the other side; the lookback above can't see it, and
+# it fired both on a soy-allergy plan whose prose said "soy-free" (caught in
+# the eval harness) and on the live "milk allergy" case above.
+_TRAILING_AVOID_RE = re.compile(r"^[\s-]*(free|allergy|allergies|allergic|sensitivity|intolerance)\b")
 
 OUTPUT_CHECK_SYSTEM_PROMPT = """You are a safety reviewer checking a nutrition assistant's response
 before it is shown to a user. Check for:
@@ -71,7 +82,7 @@ def _scan_allergens_in_prose(response: str, allergies: list[str]) -> list[str]:
             window = lowered[window_start:match.start()]
             if _NEGATION_RE.search(window):
                 continue
-            if _TRAILING_FREE_RE.match(lowered[match.end():match.end() + 8]):
+            if _TRAILING_AVOID_RE.match(lowered[match.end():match.end() + 12]):
                 continue
             hits.append(allergy)
             break
