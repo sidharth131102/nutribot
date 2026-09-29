@@ -25,7 +25,10 @@
 - **Chat history & plan memory** — conversations and accepted plans are persisted in MongoDB and injected into subsequent turns
 - **Voice input (speech-to-text)** — a mic button transcribes speech in the browser via the Azure Speech SDK (short-lived token from the backend; the key never leaves the server), auto-detecting between the languages the user lists on their profile. No text-to-speech, by design
 - **Multilingual chat** — type or speak in any language; the message is translated to English at the edge, the whole pipeline (guardrails included) runs in English, and the reply is translated back. Decided per message, so switching languages mid-conversation just works. Meal-plan tables keep their food names untranslated
-- **Next.js frontend** — chat interface with macro charts, meal plan cards, an accept/modify panel, and a profile editor (including renaming the assistant)
+- **Streaming chat** — `POST /api/chat/message/stream` (Server-Sent Events) shows real per-stage progress ("Understanding your request", "Building your response", ...) as the pipeline actually runs, instead of a static spinner. Deliberately not token-level streaming — the output guardrail needs a complete response before it can pass or reject it
+- **Cheat-day meal plans** — "generate a 7-day plan with one cheat day" builds 6 healthy days and 1 day of indulgent choices, still hitting the calorie target; every existing allergen/diet/medical safety filter still applies to the indulgent day, so it never overrides a real restriction
+- **Medical document upload** — PDF/JPG/PNG lab reports and prescriptions are OCR'd (Azure Document Intelligence) and fact-extracted (never diagnosed) into the same long-term memory the assistant already uses, with a dedicated upload/list/delete page
+- **Next.js frontend** — light neubrutalist design, a landing page with a 3D hero, chat interface with macro charts, meal plan cards, an accept/modify panel, chat-session delete, and a profile editor (including renaming the assistant)
 
 ---
 
@@ -393,6 +396,7 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 | `AZURE_OPENAI_CHALLENGER_DEPLOYMENT_FAST` | — | Challenger deployment, "fast" profile |
 | `AZURE_OPENAI_CHALLENGER_REASONING_MODEL` | `false` | Same flag as above, for the challenger |
 | `EVAL_JUDGE_PROVIDER` | `azure_openai` | Provider the DeepEval judge is pinned to — deliberately not `LLM_PROVIDER`, so `--compare` arms share one judge |
+| `FAST_CALL_PROVIDER` | empty | Provider intent classification + the output/input guardrails' LLM checks are pinned to — independent of `LLM_PROVIDER`, which the actual meal-plan generation calls still use. Empty = same as `LLM_PROVIDER`. Set to `azure_openai_challenger` to route these small classification calls to a faster non-reasoning model. **Requires that provider's own deployment vars to be set** — setting this alone breaks intent classification and the input guardrail (see Issues & Fixes #56) |
 | `AZURE_STORAGE_CONNECTION_STRING` | — | Azure Blob Storage connection string (medical document uploads) |
 | `AZURE_STORAGE_CONTAINER` | `medical-documents` | Blob container name |
 | `AZURE_DOC_INTELLIGENCE_ENDPOINT` | — | Azure AI Document Intelligence resource endpoint |
@@ -428,12 +432,12 @@ All settings are loaded from environment variables (or a `.env` file) via Pydant
 
 ## Deployment
 
-Deployed as two separate Vercel projects from this repo (interim hosting — the v2 roadmap targets an eventual move to Azure Container Apps / Static Web Apps):
+Deployed as two separate Vercel projects from this repo (interim hosting — the v2 roadmap targets an eventual move to Azure Container Apps / Static Web Apps), **live and current as of 2026-09-29**:
 
 - **Backend** — Root Directory `.`, FastAPI exposed via `[tool.vercel] entrypoint = "backend.main:app"` in `pyproject.toml` (no manual ASGI wrapper needed — Vercel's native FastAPI preset handles routing).
 - **Frontend** — Root Directory `frontend/`, Next.js auto-detected.
 
-Both projects read from the same `.env` variable set described above, entered as environment variables in each Vercel project's dashboard (never committed).
+Both projects read from the same `.env` variable set described above, entered as environment variables in each Vercel project's dashboard (never committed). **A local `.env` value existing is not evidence it's also set in Vercel** — every Azure integration added across this whole project was, at one point, configured and tested locally only and silently absent from the actual deployed backend for weeks (see `docs/ISSUES_AND_FIXES.md` #55). After adding a new required setting, verify it landed in both Vercel projects' dashboards, and redeploy — Vercel does not pick up an environment-variable change on an already-built deployment.
 
 > Note: a shared `.vercelignore` at the repo root applies to **both** projects regardless of their Root Directory — don't exclude one project's directory from it, and anchor patterns with a leading `/` if they're only meant to exclude a top-level path (unanchored patterns match at any depth, e.g. inside `backend/`).
 
@@ -455,7 +459,7 @@ Single-service container (backend only — MongoDB Atlas/Pinecone/the LLM provid
 uv run pytest
 ```
 
-`tests/test_calorie_tool.py`, `tests/test_food_filter.py` and `tests/test_plan_builder.py` cover the safety-critical deterministic modules per the v2 roadmap (calorie math, allergen/diet/medical-condition exclusion, and plan arithmetic/rebalancing). `test_food_filter.py` also asserts, for every golden-set profile, that the food list handed to the model has enough options per meal slot and can physically reach that profile's calorie target. CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real LLM API calls and isn't suited to running on every commit.
+421 tests across 35 files, zero live API calls. `tests/test_calorie_tool.py`, `tests/test_food_filter.py` and `tests/test_plan_builder.py` cover the safety-critical deterministic modules per the v2 roadmap (calorie math, allergen/diet/medical-condition exclusion, and plan arithmetic/rebalancing). `test_food_filter.py` also asserts, for every golden-set profile, that the food list handed to the model has enough options per meal slot and can physically reach that profile's calorie target. CI (`.github/workflows/ci.yml`) runs this suite on every push/PR to `master` — it deliberately does **not** run the evaluation harness (`backend/eval/`, see below), since that makes real LLM API calls and isn't suited to running on every commit.
 
 To run the evaluation harness manually instead (real API calls, not part of CI):
 

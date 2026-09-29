@@ -23,6 +23,8 @@ These apply to **every** phase. If a task seems to require weakening one of them
 
 **Practical implication for future phases**: don't substitute a Vercel-native service (e.g. Vercel Blob) for what the roadmap specifies as an Azure service — Phases 4, 7, 8, 9 are meant to be built against real Azure services even while the rest of the app still runs on Vercel.
 
+**Deployed and current as of 2026-09-29** (see `docs/ISSUES_AND_FIXES.md` #54-#58 for what this caught): the live Vercel deployment had drifted 12 commits behind `master` from a prior session that committed but never pushed, and its environment variables had drifted even further behind local `.env` — most of the Azure integrations built across this whole roadmap were configured and tested locally only. Both are now caught up: `git log origin/master` matches local `master`, and the Vercel backend project's env vars match `.env` (see `docs/ISSUES_AND_FIXES.md` #55 for exactly which vars were missing and why). **Lesson for future phases**: "committed" and "deployed," and "coded" and "configured in production," are each two independent facts — verify the live site directly (a smoke test against the real URL, or reading the actual dashboard) rather than inferring either from the other.
+
 ## Phase status
 
 | Phase | Name | Status | Shipped |
@@ -43,8 +45,14 @@ These apply to **every** phase. If a task seems to require weakening one of them
 | — | Profile edit + bot rename (frontend) | ✅ Done | 2026-09-12 |
 | — | Voice input (STT) + per-message multilingual chat + per-user spoken languages | ✅ Done (code + tests); live verification pending an Azure AI services resource | 2026-09-12 |
 | — | Meal-plan PDF download | ✅ Done | 2026-09-12 |
+| — | Latency reduction (model pinning, chat-history trimming, content-filter fail-closed) | ✅ Done | 2026-09-13 |
+| — | Frontend redesign (neubrutalist theme, landing page, 3D hero) | ✅ Done | 2026-09-13 |
+| — | Frontend UI: medical documents (upload/list/delete) + delete-chat-session | ✅ Done | 2026-09-13 |
+| — | Meal-plan day count + SSE streaming (stage-progress, not token-level) + memory-retrieval reserved quota | ✅ Done | 2026-09-13 |
+| — | Cheat-day meal plans (RAG doc, treat foods, sticky cross-turn detection) | ✅ Done | 2026-09-13/16 |
+| — | Production deployment: caught up 12 unpushed commits + this session's work; found and fixed 2 live-only bugs (account-deletion/Blob Storage, allergen-guardrail architecture) | ✅ Done | 2026-09-29 |
 | 9 | Azure production hardening (full Vercel→Azure migration) | ⬜ Not started | — |
-| — | Frontend UI for remaining backend-only features (export/delete, documents) | ⬜ Not started (consent is now in the profile form) | — |
+| — | Frontend UI for remaining backend-only features (export/delete) | ⬜ Not started (documents and consent now have UI; account export/delete still backend-only) | — |
 
 ## Phase-by-phase detail
 
@@ -93,6 +101,20 @@ User request, scoped to speech-to-text only (TTS explicitly out). Recognition ru
 ### Meal-plan PDF download (done, 2026-09-12)
 User request: "download the generated meal plan as a PDF; the format should be structured and correct." Server-rendered with ReportLab (`backend/tools/pdf_tool.py`, pure) from the same computed plan dict the card shows, so it is correct by construction — no LLM, nothing recomputed. `POST /api/plans/pdf` for whatever the client holds (proposed or accepted), `GET /api/plans/{plan_id}/pdf` for saved plans; a "PDF" button on the plan card. Verified by parsing the output back with pypdf in tests and by rasterising a sample for visual review.
 
+### Latency reduction + frontend redesign + new features (done, 2026-09-13/16)
+
+Not a roadmap-numbered phase — a long user-directed session covering a real-time UX pass (redesign) and a live-latency debugging pass, both surfaced through direct use of the deployed-quality app rather than the eval harness. Full narrative in `docs/CURRENT_STATE.md`; every bug in `docs/ISSUES_AND_FIXES.md` #45-#58.
+
+**Latency (3-part fix)**: pinned intent classification + the output guardrail's LLM check to a fast non-reasoning challenger model (`FAST_CALL_PROVIDER` setting); trimmed chat-history replay (a plan turn's stored history became a one-line marker instead of the full table, and the meal-plan selection call stopped receiving `chat_history` at all); found and fixed a real safety gap while validating the above (Azure's own content filter was silently defeating the input guardrail's fail-open handler for self-harm/violence messages — now fails closed specifically for those categories, `ContentFilterBlocked`). Verified live: ~49s → ~25s on a comparable request.
+
+**Frontend redesign**: full landing-page rebuild (light neubrutalist theme, a Three.js food-bowl hero, hand-drawn doodle scatter, hover nav), matching login/profile restyle. New `/documents` page (medical document upload/list/delete, consent-gated) and a chat-sidebar delete-session control — the two frontend gaps flagged as "not started" in the previous roadmap update.
+
+**Correctness + streaming**: meal-plan day count now reflects the actual request (was hardcoded to 7 everywhere) — deterministic parsing *and* deterministic truncation of the model's output, not just a prompt ask. New `/api/chat/message/stream` SSE endpoint emits real per-pipeline-stage progress; deliberately **not** token-level streaming, since the output guardrail needs a complete response before it can pass or reject it. Memory retrieval now reserves a quota for `medical_history` facts so they can't be silently crowded out of context by more recent chat chatter. Voice input switched from Azure's `recognizeOnceAsync` (ends dictation at the first pause) to continuous recognition.
+
+**Cheat-day meal plans** (user request): a new RAG knowledge doc on cheat-meal moderation guidance; new treat-tagged foods in `food_db.json`, only ever surfaced when a cheat day is requested, with allergen/diet/medical filtering still fully applying to them (a cheat day relaxes food *purity*, never safety); cheat-day intent is detected across the whole conversation, not just the literal triggering message, so a follow-up modification doesn't silently lose it.
+
+**Production deployment** (2026-09-29): pushed this session's work *and* discovered the live site had been 12 commits stale from a prior session that never pushed. Vercel's environment variables had drifted far behind local `.env` — essentially every Azure integration added since the original Groq→Azure migration was configured and tested locally only. Live smoke-testing after deployment (registering throwaway accounts against production, reading Vercel's runtime logs directly) caught two real bugs that only manifest in production config, both fixed and verified live the same session: a Blob Storage failure was blocking account deletion entirely (now fails open on that step, Mongo purge always proceeds), and the output guardrail's allergen scan — after a first-pass negation-vocabulary fix — turned out to have a structural ceiling for common allergens, fixed by having the LLM check adjudicate the scan's findings with real reading comprehension instead of chasing more keyword patterns.
+
 ### Phase 8 — Fine-tuning (not started, conditional)
 Explicitly optional per the original roadmap — only pursue if Phase 7's evaluation shows stock/off-the-shelf models underperforming on this domain in a way fine-tuning would plausibly fix. Not a default next step.
 
@@ -101,9 +123,11 @@ The full Vercel → Azure migration: Azure Container Apps (backend), Azure Stati
 
 ## What's next
 
-User decision (2026-09-12), in order:
-1. **A frontend UI** for the several backend-only features that have accumulated across Phases 2, 4, 5, and 6 (consent management, data export/delete, medical document upload/list/delete) — none of these have any UI yet, by deliberate scoping decision at the time, but the gap is now fairly large.
+User decision (2026-09-12), in order — **frontend UI is now mostly done** (documents, consent, delete-chat all shipped 2026-09-13; only account export/delete has no UI yet):
+1. ~~A frontend UI~~ for the backend-only features — consent, medical documents, and delete-chat-session now have UI. Account-level export/delete (`GET /api/user/export`, `DELETE /api/user/account`) is the one remaining gap.
 2. **Phase 9** (the Vercel → Azure migration: Container Apps + Static Web Apps + Key Vault). Phase 8 is skipped — Phase 7's comparison showed both stock models at parity with no capability gap, which is exactly the condition under which the roadmap says fine-tuning isn't warranted.
+
+**Not yet decided**: whether to promote `FAST_CALL_PROVIDER` from "classification calls only" to also covering meal-plan generation itself (the two-call selection+prose path still runs on the primary reasoning model and is the dominant remaining source of latency on a plan-generating turn, ~20-50s of the total). Discussed but not committed to during the 2026-09-13 latency work.
 
 ## Open items carried from the original roadmap, not yet resolved
 
