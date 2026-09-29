@@ -795,6 +795,17 @@ async def delete_user_account(user_id: str = Depends(get_current_user_id)):
     # need to enumerate blob_paths from Mongo first), so it's retryable/
     # idempotent even if this fails partway -- deleting Mongo first would risk
     # orphaning blobs with no record left to retry cleanup against.
-    await blob_client.delete_prefix(user_id)
+    #
+    # But a Blob Storage failure (misconfiguration, outage) must never block
+    # the Mongo purge -- that's the legally-relevant part of a delete-my-
+    # account request, and a user's right to it shouldn't depend on an
+    # unrelated storage service being reachable. Any orphaned blobs left
+    # behind by a failure here are still cleanly retryable later (same
+    # reasoning as the blobs-before-mongo ordering above), so failing open
+    # on this step specifically doesn't compromise that story.
+    try:
+        await blob_client.delete_prefix(user_id)
+    except Exception:
+        logger.exception("Blob cleanup failed during account deletion for user_id=%s -- proceeding with Mongo purge anyway", user_id)
     await UserScopedRepo(get_db(), user_id).delete_all()
     return {"status": "deleted"}
