@@ -77,6 +77,17 @@ def test_scan_ignores_sensitivity_and_intolerance_phrasing():
     assert _scan_allergens_in_prose("A shellfish intolerance means skipping shrimp and crab.", ["shellfish"]) == []
 
 
+def test_scan_ignores_negation_across_a_causal_explanation_clause():
+    # Real production text: "avoid" is attached to "whey/casein", not to
+    # "milk" -- the clause explaining *why* ("those are milk proteins")
+    # pushes the allergen word outside the old 20-char lookback window.
+    text = (
+        "pea- or rice-based protein powders (avoid whey/casein because "
+        "those are milk proteins)."
+    )
+    assert _scan_allergens_in_prose(text, ["Milk"]) == []
+
+
 def test_scan_still_flags_a_genuine_recommendation_despite_nearby_allergy_word():
     # Guard against the fix being too broad: an *unrelated* mention of the
     # word "allergy" elsewhere in the response must not blanket-suppress a
@@ -120,7 +131,13 @@ async def test_check_output_handles_malformed_issues_type(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_check_output_allergen_hit_overrides_llm_safe(monkeypatch):
+async def test_check_output_trusts_llm_reviewing_a_deterministic_hit_as_safe(monkeypatch):
+    """The deterministic scan is a blunt word-match; it can't tell "avoid
+    peanuts, here's why" from "eat more peanuts". When the LLM actually
+    reviewed the flagged mention (given the allergy list + rubric item 4)
+    and judged it safe, that verdict is trusted -- this is the fix for a
+    real production case where the scan was blocking its own correct,
+    safety-conscious answers on nearly every turn."""
     class _FakeResult:
         text = '{"safe": true, "issues": [], "feedback": ""}'
 
@@ -129,6 +146,44 @@ async def test_check_output_allergen_hit_overrides_llm_safe(monkeypatch):
             return _FakeResult()
 
     monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
+
+    # Phrasing the deterministic scan itself can't parse as negation ("should
+    # be replaced with" isn't in its keyword list) -- confirms this is really
+    # exercising the LLM-override path, not a case the scan already forgives.
+    text = "Peanuts should be replaced with sunflower seeds in your diet."
+    assert _scan_allergens_in_prose(text, ["peanuts"]) == ["peanuts"]
+
+    result = await check_output(text, None, [], ["peanuts"], [])
+
+    assert result.safe is True
+
+
+@pytest.mark.asyncio
+async def test_check_output_blocks_when_llm_agrees_the_hit_is_a_real_problem(monkeypatch):
+    class _FakeResult:
+        text = '{"safe": false, "issues": ["recommends peanuts, a stated allergen"], "feedback": "Remove peanuts."}'
+
+    class _FakeProvider:
+        async def generate(self, **kwargs):
+            return _FakeResult()
+
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", lambda name=None: _FakeProvider())
+
+    result = await check_output("Add peanuts for extra protein.", None, [], ["peanuts"], [])
+
+    assert result.safe is False
+    assert any("peanuts" in issue for issue in result.issues)
+
+
+@pytest.mark.asyncio
+async def test_check_output_allergen_hit_fails_closed_when_llm_call_errors(monkeypatch):
+    """The LLM half can't weigh in at all here -- the deterministic scan must
+    stay the fail-closed fallback exactly as before this change, since there
+    is no other allergen signal to trust."""
+    def _raise(name=None):
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr("backend.guardrails.output_check.get_provider", _raise)
 
     result = await check_output("This includes peanuts.", None, [], ["peanuts"], [])
 
