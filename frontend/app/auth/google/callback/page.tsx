@@ -54,7 +54,7 @@ function GoogleCallbackInner() {
       <div className="text-center space-y-4">
         {error ? (
           <>
-            <p className="text-red-400 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">{error}</p>
             <p className="text-muted text-xs">Redirecting to login…</p>
           </>
         ) : (

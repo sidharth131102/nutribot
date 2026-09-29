@@ -76,7 +76,7 @@ export default function MealPlanCard({ plan }: Props) {
             disabled={downloading}
             title="Download this plan as a PDF"
             className="flex items-center gap-1.5 text-xs text-muted border border-border rounded-lg px-2.5 py-1.5
-              hover:text-primary hover:border-primary disabled:opacity-50 transition-colors"
+              hover:text-ink hover:border-primary disabled:opacity-50 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
@@ -85,16 +85,16 @@ export default function MealPlanCard({ plan }: Props) {
           </button>
         </div>
       </div>
-      {downloadError && <p className="text-xs text-red-400">{downloadError}</p>}
+      {downloadError && <p className="text-xs text-red-600">{downloadError}</p>}
 
       <div className="flex gap-3 text-sm">
-        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-primary">
+        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-ink">
           P {plan.macro_targets.protein_g}g
         </span>
-        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-primary">
+        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-ink">
           C {plan.macro_targets.carbs_g}g
         </span>
-        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-primary">
+        <span className="bg-panel border border-border rounded-lg px-3 py-1 text-ink">
           F {plan.macro_targets.fat_g}g
         </span>
       </div>
@@ -106,14 +106,14 @@ export default function MealPlanCard({ plan }: Props) {
               <span className="font-medium text-text text-sm">{day.day}</span>
               <span className="text-muted text-xs">
                 {day.daily_totals?.calories ?? 0} kcal
-                <span className="ml-2 text-primary group-open:rotate-180 inline-block transition-transform">▾</span>
+                <span className="ml-2 text-ink group-open:rotate-180 inline-block transition-transform">▾</span>
               </span>
             </summary>
             <div className="mt-2 ml-2 space-y-2">
               {day.meals.map((meal) => (
                 <div key={meal.name} className="border border-border rounded-lg overflow-hidden">
                   <div className="flex items-center justify-between bg-panel px-3 py-1.5">
-                    <span className="text-sm font-medium text-primary">{meal.name}</span>
+                    <span className="text-sm font-medium text-ink">{meal.name}</span>
                     <span className="text-xs text-muted">{meal.total_calories} kcal</span>
                   </div>
                   <div className="divide-y divide-border">

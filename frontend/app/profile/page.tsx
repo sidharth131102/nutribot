@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import Magnetic from "@/src/components/motion/Magnetic";
 import {
   createProfile,
   getConsentStatus,
@@ -14,6 +16,26 @@ import {
   type SpokenLanguagesResponse,
 } from "@/src/services/api";
 import { resetSpeechToken } from "@/src/services/speech";
+import {
+  Apple, Carrot, Check, DoodleField, Droplet, Dumbbell, Loop,
+  Plus, Scribble, Sparkle, Squiggle, Star, Wave, Zigzag,
+} from "@/src/components/landing/Doodles";
+
+const PROFILE_DOODLES = [
+  { icon: Sparkle, className: "top-[7%] left-[7%] w-9 h-9", rotate: -8, opacity: 0.45 },
+  { icon: Squiggle, className: "top-[13%] right-[9%] w-16 h-6", rotate: 6, opacity: 0.45 },
+  { icon: Droplet, className: "bottom-[16%] left-[9%] w-6 h-8", rotate: 14, opacity: 0.4 },
+  { icon: Loop, className: "bottom-[9%] right-[11%] w-12 h-12", rotate: 0, opacity: 0.35 },
+  { icon: Plus, className: "bottom-[34%] right-[5%] w-5 h-5", rotate: 12, opacity: 0.4 },
+  { icon: Carrot, className: "top-[38%] left-[4%] w-8 h-10", rotate: -18, opacity: 0.35 },
+  { icon: Apple, className: "bottom-[4%] left-[22%] w-8 h-9", rotate: 10, opacity: 0.35 },
+  { icon: Star, className: "top-[5%] right-[22%] w-6 h-6", rotate: 12, opacity: 0.35 },
+  { icon: Zigzag, className: "top-[52%] left-[3%] w-14 h-5", rotate: -6, opacity: 0.3 },
+  { icon: Dumbbell, className: "top-[20%] left-[18%] w-10 h-5", rotate: 8, opacity: 0.3 },
+  { icon: Check, className: "bottom-[42%] right-[22%] w-6 h-5", rotate: -10, opacity: 0.3 },
+  { icon: Scribble, className: "top-[60%] right-[3%] w-10 h-10", rotate: 6, opacity: 0.28 },
+  { icon: Wave, className: "bottom-[24%] right-[26%] w-14 h-5", rotate: 0, opacity: 0.3 },
+];
 
 const STEPS = ["Personal", "Health", "Lifestyle", "Personalize"] as const;
 
@@ -59,7 +81,7 @@ function MultiSelect({
           onClick={() => toggle(opt)}
           className={`px-3 py-1.5 rounded-lg text-sm border transition-colors
             ${selected.includes(opt)
-              ? "bg-primary text-background border-primary"
+              ? "bg-primary text-text border-primary"
               : "bg-panel border-border text-muted hover:border-primary hover:text-text"
             }`}
         >
@@ -317,10 +339,21 @@ export default function ProfileBuilderPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-lg">
+    <main className="relative min-h-screen flex items-center justify-center px-4 py-8 overflow-hidden">
+      <DoodleField items={PROFILE_DOODLES} />
+      <div className="absolute top-0 right-1/4 w-96 h-96 rounded-full opacity-[0.14] blur-3xl pointer-events-none"
+        style={{ background: "radial-gradient(circle, #d6f83c 0%, transparent 70%)" }} />
+      <div className="absolute bottom-0 left-1/4 w-72 h-72 rounded-full opacity-[0.08] blur-3xl pointer-events-none"
+        style={{ background: "radial-gradient(circle, #ff6b4a 0%, transparent 70%)" }} />
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="relative w-full max-w-lg"
+      >
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-text">
+          <h1 className="font-display text-2xl font-bold text-text tracking-tight">
             {editMode ? "Edit Your Profile" : "Build Your Profile"}
           </h1>
           <p className="text-muted text-sm mt-1">
@@ -349,7 +382,7 @@ export default function ProfileBuilderPage() {
               />
               <span
                 className={`text-xs ${
-                  i === step ? "text-primary font-medium" : "text-muted"
+                  i === step ? "text-ink font-medium" : "text-muted"
                 }`}
               >
                 {s}
@@ -358,7 +391,15 @@ export default function ProfileBuilderPage() {
           ))}
         </div>
 
-        <div className="bg-surface border border-border rounded-2xl p-6">
+        <div className="bg-surface border-2 border-ink rounded-2xl p-6 shadow-hard overflow-hidden">
+          <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 18 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -18 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
           {/* Step 0 — Personal */}
           {step === 0 && (
             <div className="space-y-4">
@@ -407,7 +448,7 @@ export default function ProfileBuilderPage() {
                           form.height_unit === "cm" ? "ft_in" : "cm"
                         )
                       }
-                      className="px-2 text-xs text-primary border border-border rounded-lg whitespace-nowrap"
+                      className="px-2 text-xs text-ink border border-border rounded-lg whitespace-nowrap"
                     >
                       {form.height_unit === "cm" ? "ft" : "cm"}
                     </button>
@@ -429,7 +470,7 @@ export default function ProfileBuilderPage() {
                           form.weight_unit === "kg" ? "lbs" : "kg"
                         )
                       }
-                      className="px-2 text-xs text-primary border border-border rounded-lg"
+                      className="px-2 text-xs text-ink border border-border rounded-lg"
                     >
                       {form.weight_unit === "kg" ? "lbs" : "kg"}
                     </button>
@@ -487,7 +528,7 @@ export default function ProfileBuilderPage() {
                     I consent to NutriBot storing my medical conditions and using them to
                     personalise nutrition guidance. This is required to save conditions
                     {consentGranted && (
-                      <span className="text-primary"> · already on record</span>
+                      <span className="text-ink"> · already on record</span>
                     )}
                     .
                   </span>
@@ -607,9 +648,11 @@ export default function ProfileBuilderPage() {
               </div>
             </div>
           )}
+          </motion.div>
+          </AnimatePresence>
 
           {error && (
-            <p className="mt-4 text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
+            <p className="mt-4 text-sm text-red-700 bg-red-100 border-2 border-red-700 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
@@ -631,27 +674,29 @@ export default function ProfileBuilderPage() {
                 type="button"
                 onClick={submit}
                 disabled={loading}
-                className="flex-1 bg-panel border border-primary/40 text-primary rounded-xl py-2.5 text-sm
+                className="flex-1 bg-panel border border-primary/40 text-ink rounded-xl py-2.5 text-sm
                   hover:bg-border disabled:opacity-50 transition-colors"
               >
                 {loading ? "Saving…" : "Save Changes"}
               </button>
             )}
-            <button
-              type="button"
-              onClick={isLastStep ? submit : () => setStep(step + 1)}
-              disabled={loading}
-              className="flex-1 bg-primary text-background font-semibold rounded-xl py-2.5 text-sm
-                hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading
-                ? "Saving…"
-                : isLastStep
-                ? editMode
-                  ? "Save Changes"
-                  : "Start Chatting 🚀"
-                : "Continue →"}
-            </button>
+            <Magnetic strength={6} className="flex-1">
+              <button
+                type="button"
+                onClick={isLastStep ? submit : () => setStep(step + 1)}
+                disabled={loading}
+                className="w-full bg-primary text-text font-semibold rounded-xl py-2.5 text-sm
+                  hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading
+                  ? "Saving…"
+                  : isLastStep
+                  ? editMode
+                    ? "Save Changes"
+                    : "Start Chatting 🚀"
+                  : "Continue →"}
+              </button>
+            </Magnetic>
           </div>
           {editMode && (
             <button
@@ -663,7 +708,7 @@ export default function ProfileBuilderPage() {
             </button>
           )}
         </div>
-      </div>
+      </motion.div>
     </main>
   );
 }

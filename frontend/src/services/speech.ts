@@ -61,9 +61,20 @@ export async function isVoiceAvailable(): Promise<boolean> {
   }
 }
 
-/** Recognise a single utterance from the microphone. Resolves when the
- *  speaker pauses; rejects with a SpeechError the UI can explain. */
-export async function recognizeOnce(): Promise<SpeechResult> {
+/** A live recognition session started by `startListening()`. Keeps
+ *  recognising across natural pauses in speech; call `stop()` when the user
+ *  is done talking to finalise the transcript and release the microphone. */
+export type ListeningSession = {
+  stop: () => Promise<SpeechResult>;
+};
+
+/** Start listening from the microphone. Unlike a single "recognize once"
+ *  call, this keeps the recognizer open across pauses -- Azure's one-shot
+ *  mode ends the whole recognition at the first silence gap, which cut
+ *  users off mid-sentence whenever they paused to think. Each completed
+ *  phrase is accumulated; call `stop()` to end the session and get the
+ *  full transcript back. */
+export async function startListening(): Promise<ListeningSession> {
   const { token, region, languages } = await tokenData();
   const sdk = await import("microsoft-cognitiveservices-speech-sdk");
 
@@ -81,36 +92,57 @@ export async function recognizeOnce(): Promise<SpeechResult> {
           return new sdk.SpeechRecognizer(speechConfig, audioConfig);
         })();
 
-  try {
-    const result = await new Promise<InstanceType<typeof sdk.SpeechRecognitionResult>>((resolve, reject) => {
-      recognizer.recognizeOnceAsync(resolve, reject);
-    });
+  const segments: string[] = [];
+  let detectedLocale: string | undefined;
+  let cancelDetails: string | null = null;
 
-    switch (result.reason) {
-      case sdk.ResultReason.RecognizedSpeech: {
-        const detected = sdk.AutoDetectSourceLanguageResult.fromResult(result).language;
-        return { text: result.text, locale: detected || (languages.length === 1 ? languages[0] : undefined) };
+  recognizer.recognized = (_sender, event) => {
+    if (event.result.reason === sdk.ResultReason.RecognizedSpeech && event.result.text) {
+      segments.push(event.result.text);
+      if (!detectedLocale) {
+        const detected = sdk.AutoDetectSourceLanguageResult.fromResult(event.result).language;
+        detectedLocale = detected || (languages.length === 1 ? languages[0] : undefined);
       }
-      case sdk.ResultReason.NoMatch:
-        throw new SpeechError("I didn't catch that — try speaking again.", "no_speech");
-      case sdk.ResultReason.Canceled: {
-        const details = sdk.CancellationDetails.fromResult(result);
-        if (/permission|NotAllowedError|microphone/i.test(details.errorDetails)) {
-          throw new SpeechError("Microphone access was denied.", "permission");
-        }
-        throw new SpeechError(details.errorDetails || "Speech recognition was cancelled.", "failed");
-      }
-      default:
-        throw new SpeechError("Speech recognition failed.", "failed");
     }
+  };
+  recognizer.canceled = (_sender, event) => {
+    cancelDetails = event.errorDetails || String(event.reason);
+  };
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      recognizer.startContinuousRecognitionAsync(resolve, reject);
+    });
   } catch (err) {
-    if (err instanceof SpeechError) throw err;
+    recognizer.close();
     const message = err instanceof Error ? err.message : String(err);
     if (/NotAllowedError|Permission|denied/i.test(message)) {
       throw new SpeechError("Microphone access was denied.", "permission");
     }
     throw new SpeechError(message || "Speech recognition failed.", "failed");
-  } finally {
-    recognizer.close();
   }
+
+  return {
+    stop: () =>
+      new Promise<SpeechResult>((resolve, reject) => {
+        recognizer.stopContinuousRecognitionAsync(
+          () => {
+            recognizer.close();
+            if (segments.length === 0) {
+              if (cancelDetails && /permission|NotAllowedError|microphone/i.test(cancelDetails)) {
+                reject(new SpeechError("Microphone access was denied.", "permission"));
+              } else {
+                reject(new SpeechError("I didn't catch that — try speaking again.", "no_speech"));
+              }
+              return;
+            }
+            resolve({ text: segments.join(" "), locale: detectedLocale });
+          },
+          (err) => {
+            recognizer.close();
+            reject(new SpeechError(String(err) || "Speech recognition failed.", "failed"));
+          }
+        );
+      }),
+  };
 }

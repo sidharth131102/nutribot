@@ -17,7 +17,7 @@ export default function AcceptModifyPanel({
 }: Props) {
   if (accepted && confirmationMessage) {
     return (
-      <div className="flex items-center gap-2 mt-3 text-sm text-primary bg-panel border border-border rounded-xl px-4 py-3">
+      <div className="flex items-center gap-2 mt-3 text-sm text-ink bg-panel border border-border rounded-xl px-4 py-3">
         <span>✓</span>
         <span>{confirmationMessage}</span>
       </div>
@@ -29,7 +29,7 @@ export default function AcceptModifyPanel({
       <button
         onClick={onAccept}
         disabled={loading || accepted}
-        className="flex-1 bg-primary text-background font-semibold rounded-xl py-2.5 text-sm
+        className="flex-1 bg-primary text-text font-semibold rounded-xl py-2.5 text-sm
           hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? "Saving…" : "✓ Accept Plan"}

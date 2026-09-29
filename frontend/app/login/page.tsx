@@ -2,7 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { ArrowLeft, Leaf } from "lucide-react";
 import { login, register, getGoogleAuthUrl, type TokenResponse } from "@/src/services/api";
+import Magnetic from "@/src/components/motion/Magnetic";
+import {
+  Apple, Carrot, Check, DoodleField, Droplet, Dumbbell, Heartbeat, Loop,
+  Plus, Scribble, Sparkle, Squiggle, Star, Wave, Zigzag,
+} from "@/src/components/landing/Doodles";
+
+const LOGIN_DOODLES = [
+  { icon: Sparkle, className: "top-[9%] left-[9%] w-9 h-9", rotate: -8, opacity: 0.5 },
+  { icon: Squiggle, className: "top-[15%] right-[12%] w-16 h-6", rotate: 6, opacity: 0.5 },
+  { icon: Heartbeat, className: "bottom-[22%] left-[6%] w-20 h-8", rotate: -4, opacity: 0.45 },
+  { icon: Droplet, className: "top-[46%] right-[7%] w-6 h-8", rotate: 10, opacity: 0.45 },
+  { icon: Loop, className: "bottom-[10%] right-[14%] w-12 h-12", rotate: 0, opacity: 0.4 },
+  { icon: Plus, className: "bottom-[32%] right-[21%] w-5 h-5", rotate: 15, opacity: 0.4 },
+  { icon: Carrot, className: "top-[34%] left-[5%] w-8 h-10", rotate: -20, opacity: 0.4 },
+  { icon: Apple, className: "bottom-[6%] left-[20%] w-8 h-9", rotate: 12, opacity: 0.4 },
+  { icon: Star, className: "top-[6%] right-[26%] w-6 h-6", rotate: 10, opacity: 0.4 },
+  { icon: Zigzag, className: "bottom-[40%] left-[3%] w-14 h-5", rotate: -6, opacity: 0.35 },
+  { icon: Dumbbell, className: "top-[24%] left-[20%] w-10 h-5", rotate: 8, opacity: 0.35 },
+  { icon: Check, className: "top-[8%] left-[30%] w-6 h-5", rotate: -10, opacity: 0.35 },
+  { icon: Scribble, className: "bottom-[4%] right-[6%] w-10 h-10", rotate: 6, opacity: 0.3 },
+  { icon: Wave, className: "top-[58%] right-[4%] w-14 h-5", rotate: 0, opacity: 0.35 },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,27 +70,52 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+    <main className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden">
+      {/* Ambient background glow, echoes the landing hero */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-[0.14] blur-3xl pointer-events-none"
+        style={{ background: "radial-gradient(circle, #d6f83c 0%, transparent 70%)" }} />
+      <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full opacity-[0.08] blur-3xl pointer-events-none"
+        style={{ background: "radial-gradient(circle, #ff6b4a 0%, transparent 70%)" }} />
+      <DoodleField items={LOGIN_DOODLES} />
+
+      <Link
+        href="/"
+        className="absolute top-6 left-6 z-10 inline-flex items-center gap-1.5 text-sm font-medium bg-surface border-2 border-ink rounded-full pl-3 pr-4 py-2 shadow-hard-sm hover:-translate-y-0.5 transition-transform"
+      >
+        <ArrowLeft className="w-4 h-4" strokeWidth={2.5} />
+        Back to home
+      </Link>
+
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="relative w-full max-w-sm"
+      >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-panel border border-border mb-4">
-            <span className="text-2xl">🥗</span>
-          </div>
-          <h1 className="text-2xl font-bold text-text">NutriBot</h1>
+          <motion.div
+            initial={{ scale: 0.8, rotate: -8, opacity: 0 }}
+            animate={{ scale: 1, rotate: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary border-2 border-ink mb-4 shadow-hard"
+          >
+            <Leaf className="w-6 h-6 text-ink" strokeWidth={2.5} />
+          </motion.div>
+          <h1 className="font-display text-2xl font-extrabold text-text tracking-tight">NutriBot</h1>
           <p className="text-muted text-sm mt-1">Your AI nutrition companion</p>
         </div>
 
         {/* Card */}
-        <div className="bg-surface border border-border rounded-2xl p-6">
+        <div className="bg-surface border-2 border-ink rounded-2xl p-6 shadow-hard">
           {/* Tab toggle */}
-          <div className="flex rounded-xl bg-panel p-1 mb-6">
+          <div className="flex rounded-xl bg-panel border-2 border-ink p-1 mb-6">
             {(["login", "register"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors capitalize
-                  ${mode === m ? "bg-primary text-background" : "text-muted hover:text-text"}`}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize
+                  ${mode === m ? "bg-primary text-ink" : "text-muted hover:text-text"}`}
               >
                 {m}
               </button>
@@ -82,7 +132,7 @@ export default function LoginPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Your full name"
-                  className="w-full bg-panel border border-border rounded-xl px-4 py-2.5 text-text text-sm
+                  className="w-full bg-panel border-2 border-ink rounded-xl px-4 py-2.5 text-text text-sm
                     placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
                 />
               </div>
@@ -95,7 +145,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full bg-panel border border-border rounded-xl px-4 py-2.5 text-text text-sm
+                className="w-full bg-panel border-2 border-ink rounded-xl px-4 py-2.5 text-text text-sm
                   placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
               />
             </div>
@@ -108,41 +158,43 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-panel border border-border rounded-xl px-4 py-2.5 text-text text-sm
+                className="w-full bg-panel border-2 border-ink rounded-xl px-4 py-2.5 text-text text-sm
                   placeholder:text-muted focus:outline-none focus:border-primary transition-colors"
               />
             </div>
 
             {error && (
-              <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
+              <p className="text-sm text-red-700 bg-red-100 border-2 border-red-700 rounded-lg px-3 py-2">
                 {error}
               </p>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-background font-semibold rounded-xl py-3 text-sm
-                hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading
-                ? mode === "login" ? "Signing in…" : "Creating account…"
-                : mode === "login" ? "Sign In" : "Create Account"}
-            </button>
+            <Magnetic strength={6}>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary text-ink border-2 border-ink font-bold rounded-xl py-3 text-sm
+                  shadow-hard-sm hover:-translate-y-0.5 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                {loading
+                  ? mode === "login" ? "Signing in…" : "Creating account…"
+                  : mode === "login" ? "Sign In" : "Create Account"}
+              </button>
+            </Magnetic>
           </form>
 
           {/* Divider */}
           <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px bg-border" />
+            <div className="flex-1 h-px bg-border/15" />
             <span className="text-xs text-muted">or</span>
-            <div className="flex-1 h-px bg-border" />
+            <div className="flex-1 h-px bg-border/15" />
           </div>
 
           {/* Google OAuth */}
           <button
             onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-panel border border-border
-              rounded-xl py-3 text-sm text-text hover:bg-border transition-colors"
+            className="w-full flex items-center justify-center gap-3 bg-surface border-2 border-ink
+              rounded-xl py-3 text-sm font-medium text-text hover:bg-panel transition-colors"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -153,7 +205,7 @@ export default function LoginPage() {
             Continue with Google
           </button>
         </div>
-      </div>
+      </motion.div>
     </main>
   );
 }

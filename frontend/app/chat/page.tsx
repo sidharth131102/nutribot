@@ -3,17 +3,20 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
+import { motion } from "framer-motion";
+import Magnetic from "@/src/components/motion/Magnetic";
 import {
-  sendMessage,
+  sendMessageStream,
   getChatHistory,
   getChatSessions,
+  deleteSession,
   acceptPlan,
   type AuthUser,
   type ChatMessage,
   type ChatSession,
   type RagSource,
 } from "@/src/services/api";
-import { isVoiceAvailable, recognizeOnce, SpeechError } from "@/src/services/speech";
+import { isVoiceAvailable, startListening, SpeechError, type ListeningSession } from "@/src/services/speech";
 import ChatBubble from "@/src/components/ChatBubble";
 import MealPlanCard from "@/src/components/MealPlanCard";
 import AcceptModifyPanel from "@/src/components/AcceptModifyPanel";
@@ -65,6 +68,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progressLabel, setProgressLabel] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
@@ -73,6 +77,7 @@ export default function ChatPage() {
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
   const [listening, setListening] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceSessionRef = useRef<ListeningSession | null>(null);
   // Locale of the transcript currently sitting in the input box, if it came
   // from the mic. Cleared when the user edits the text or sends it.
   const [spokenLocale, setSpokenLocale] = useState<string | undefined>(undefined);
@@ -104,6 +109,13 @@ export default function ChatPage() {
   useEffect(() => {
     if (user) isVoiceAvailable().then(setVoiceAvailable);
   }, [user]);
+
+  // Release the microphone if the page is left mid-dictation.
+  useEffect(() => {
+    return () => {
+      voiceSessionRef.current?.stop().catch(() => {});
+    };
+  }, []);
 
   // Load messages for the active session
   const loadSession = useCallback(async (sessionId: string, currentUser: AuthUser) => {
@@ -154,6 +166,18 @@ export default function ChatPage() {
     setMessages([]);
   }
 
+  async function handleDeleteSession(sessionId: string, preview: string) {
+    const label = preview || "New conversation";
+    if (!window.confirm(`Delete "${label}"? This can't be undone.`)) return;
+    try {
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.session_id !== sessionId));
+      if (sessionId === activeSessionId) startNewChat();
+    } catch {
+      alert("Failed to delete the chat. Please try again.");
+    }
+  }
+
   async function send() {
     const text = input.trim();
     if (!text || loading || !user) return;
@@ -172,9 +196,16 @@ export default function ChatPage() {
     setSpokenLocale(undefined);
     setVoiceError(null);
     setLoading(true);
+    setProgressLabel(null);
 
     try {
-      const res = await sendMessage(user.id, activeSessionId, text, locale);
+      const res = await sendMessageStream(
+        user.id,
+        activeSessionId,
+        text,
+        (label) => setProgressLabel(label),
+        locale
+      );
       if (res.message_english) {
         setMessages((prev) =>
           prev.map((m) => (m.id === userMsgId ? { ...m, understoodAs: res.message_english } : m))
@@ -201,6 +232,7 @@ export default function ChatPage() {
       }]);
     } finally {
       setLoading(false);
+      setProgressLabel(null);
       inputRef.current?.focus();
     }
   }
@@ -209,17 +241,39 @@ export default function ChatPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
+  // Click once to start listening, click again to stop -- the recognizer
+  // stays open across pauses in speech and accumulates each phrase, so a
+  // mid-sentence pause to think no longer cuts the dictation short.
   async function handleVoice() {
-    if (listening || loading) return;
+    if (loading) return;
+
+    if (listening) {
+      const session = voiceSessionRef.current;
+      voiceSessionRef.current = null;
+      setListening(false);
+      if (!session) return;
+      try {
+        const result = await session.stop();
+        // Append to whatever is already typed so a user can dictate in parts;
+        // they review the transcript before sending.
+        setInput((prev) => (prev.trim() ? `${prev.trim()} ${result.text}` : result.text));
+        setSpokenLocale(result.locale);
+        inputRef.current?.focus();
+      } catch (err) {
+        if (err instanceof SpeechError) {
+          setVoiceError(err.message);
+          if (err.code === "not_configured") setVoiceAvailable(false);
+        } else {
+          setVoiceError("Voice input failed. Please try again.");
+        }
+      }
+      return;
+    }
+
     setVoiceError(null);
-    setListening(true);
     try {
-      const result = await recognizeOnce();
-      // Append to whatever is already typed so a user can dictate in parts;
-      // they review the transcript before sending.
-      setInput((prev) => (prev.trim() ? `${prev.trim()} ${result.text}` : result.text));
-      setSpokenLocale(result.locale);
-      inputRef.current?.focus();
+      voiceSessionRef.current = await startListening();
+      setListening(true);
     } catch (err) {
       if (err instanceof SpeechError) {
         setVoiceError(err.message);
@@ -227,8 +281,6 @@ export default function ChatPage() {
       } else {
         setVoiceError("Voice input failed. Please try again.");
       }
-    } finally {
-      setListening(false);
     }
   }
 
@@ -276,7 +328,7 @@ export default function ChatPage() {
           <span className="text-sm font-semibold text-text truncate">Chats</span>
           <button
             onClick={startNewChat}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-primary/10 hover:bg-primary/20 text-ink transition-colors"
             title="New chat"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -293,7 +345,7 @@ export default function ChatPage() {
               className="w-full text-left px-3 py-2.5 rounded-lg mx-1 bg-primary/10 border border-primary/30"
               style={{ width: "calc(100% - 8px)" }}
             >
-              <p className="text-xs font-medium text-primary truncate">New conversation</p>
+              <p className="text-xs font-medium text-ink truncate">New conversation</p>
               <p className="text-xs text-muted mt-0.5">Just now</p>
             </button>
           )}
@@ -303,30 +355,59 @@ export default function ChatPage() {
           )}
 
           {sessions.map((session) => (
-            <button
+            <div
               key={session.session_id}
-              onClick={() => switchSession(session.session_id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg mx-1 transition-colors hover:bg-panel
+              className={`group relative mx-1 rounded-lg transition-colors hover:bg-panel
                 ${activeSessionId === session.session_id ? "bg-primary/10 border border-primary/30" : ""}
               `}
               style={{ width: "calc(100% - 8px)" }}
             >
-              <p className={`text-xs font-medium truncate ${activeSessionId === session.session_id ? "text-primary" : "text-text"}`}>
-                {session.preview || "New conversation"}
-              </p>
-              <p className="text-xs text-muted mt-0.5">{formatSessionDate(session.started_at)}</p>
-            </button>
+              <button
+                onClick={() => switchSession(session.session_id)}
+                className="w-full text-left px-3 py-2.5 pr-8"
+              >
+                <p className={`text-xs font-medium truncate ${activeSessionId === session.session_id ? "text-ink" : "text-text"}`}>
+                  {session.preview || "New conversation"}
+                </p>
+                <p className="text-xs text-muted mt-0.5">{formatSessionDate(session.started_at)}</p>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.session_id, session.preview); }}
+                title="Delete this chat"
+                aria-label="Delete this chat"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md
+                  text-muted opacity-0 group-hover:opacity-100 hover:text-red-600 hover:bg-red-100 transition-all"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v13a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10z" />
+                </svg>
+              </button>
+            </div>
           ))}
         </div>
 
         {/* Sidebar footer */}
-        <div className="flex-shrink-0 px-3 py-3 border-t border-border">
+        <div className="flex-shrink-0 px-3 py-3 border-t border-border space-y-1">
+          <button
+            onClick={() => router.push("/documents")}
+            title="Medical documents"
+            className="w-full flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-panel transition-colors text-left"
+          >
+            <div className="w-7 h-7 rounded-full bg-panel border border-border flex items-center justify-center flex-shrink-0">
+              <svg className="w-3.5 h-3.5 text-ink" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p className="flex-1 text-xs font-medium text-text truncate">Medical documents</p>
+          </button>
           <button
             onClick={() => router.push("/profile")}
             title="Edit your profile"
             className="w-full flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-panel transition-colors text-left"
           >
-            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold flex-shrink-0">
+            <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center text-ink text-xs font-bold flex-shrink-0">
               {user.full_name[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
@@ -362,7 +443,7 @@ export default function ChatPage() {
               title="Rename your assistant"
               className="flex items-center gap-3 rounded-lg px-1 py-0.5 hover:bg-panel transition-colors text-left"
             >
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-background text-sm font-bold">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-text text-sm font-bold">
                 {user.bot_name[0].toUpperCase()}
               </div>
               <div>
@@ -400,7 +481,12 @@ export default function ChatPage() {
           ) : (
             <>
               {messages.map((msg) => (
-                <div key={msg.id}>
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                >
                   <ChatBubble
                     role={msg.role}
                     content={msg.content}
@@ -422,21 +508,22 @@ export default function ChatPage() {
                       />
                     </div>
                   )}
-                </div>
+                </motion.div>
               ))}
 
               {loading && (
                 <div className="flex items-end gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-panel border border-border flex items-center justify-center text-primary text-sm font-bold">
+                  <div className="w-8 h-8 rounded-full bg-panel border border-border flex items-center justify-center text-ink text-sm font-bold">
                     {user.bot_name[0].toUpperCase()}
                   </div>
-                  <div className="bg-panel border border-border rounded-2xl rounded-bl-sm px-4 py-3">
+                  <div className="bg-panel border border-border rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
                     <div className="flex gap-1">
                       {[0, 1, 2].map((i) => (
                         <span key={i} className="w-1.5 h-1.5 bg-muted rounded-full animate-bounce"
                           style={{ animationDelay: `${i * 0.15}s` }} />
                       ))}
                     </div>
+                    {progressLabel && <span className="text-xs text-muted">{progressLabel}…</span>}
                   </div>
                 </div>
               )}
@@ -468,10 +555,10 @@ export default function ChatPage() {
           {(voiceError || spokenLocale) && (
             <div className="flex items-center gap-2 mb-2 text-xs">
               {voiceError ? (
-                <span className="text-red-400">{voiceError}</span>
+                <span className="text-red-600">{voiceError}</span>
               ) : (
                 <span className="text-muted">
-                  🎤 Heard in <span className="text-primary">{languageLabel(spokenLocale)}</span> — review, then send
+                  🎤 Heard in <span className="text-ink">{languageLabel(spokenLocale)}</span> — review, then send
                 </span>
               )}
             </div>
@@ -482,12 +569,12 @@ export default function ChatPage() {
               <button
                 onClick={handleVoice}
                 disabled={loading}
-                title={listening ? "Listening…" : "Speak your message"}
-                aria-label={listening ? "Listening" : "Speak your message"}
+                title={listening ? "Listening… click to stop" : "Speak your message"}
+                aria-label={listening ? "Listening, click to stop" : "Speak your message"}
                 className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 border transition-colors
                   ${listening
-                    ? "bg-red-500/20 border-red-500 text-red-400 animate-pulse"
-                    : "bg-panel border-border text-muted hover:text-primary hover:border-primary"}
+                    ? "bg-red-500/20 border-red-500 text-red-600 animate-pulse"
+                    : "bg-panel border-border text-muted hover:text-ink hover:border-primary"}
                   disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -513,16 +600,18 @@ export default function ChatPage() {
                 t.style.height = `${Math.min(t.scrollHeight, 128)}px`;
               }}
             />
-            <button
-              onClick={send}
-              disabled={loading || !input.trim()}
-              className="w-11 h-11 bg-primary text-background rounded-2xl flex items-center justify-center
-                hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
+            <Magnetic strength={10} className="flex-shrink-0">
+              <button
+                onClick={send}
+                disabled={loading || !input.trim()}
+                className="w-11 h-11 bg-primary text-text rounded-2xl flex items-center justify-center
+                  hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </Magnetic>
           </div>
         </div>
       </div>

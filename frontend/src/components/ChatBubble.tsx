@@ -45,7 +45,7 @@ export default function ChatBubble({
       {/* Avatar */}
       <div
         className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
-          ${isUser ? "bg-primary text-background" : "bg-panel border border-border text-primary"}`}
+          ${isUser ? "bg-primary text-text" : "bg-panel border border-border text-ink"}`}
       >
         {isUser ? "U" : botName[0].toUpperCase()}
       </div>
@@ -55,7 +55,7 @@ export default function ChatBubble({
         <div
           className={`rounded-2xl px-4 py-3
             ${isUser
-              ? "bg-primary text-background rounded-br-sm"
+              ? "bg-primary text-text rounded-br-sm"
               : "bg-panel border border-border text-text rounded-bl-sm"
             }`}
         >
@@ -67,7 +67,7 @@ export default function ChatBubble({
             </div>
           )}
           {timestamp && (
-            <p className={`text-xs mt-1 ${isUser ? "text-background/60 text-right" : "text-muted"}`}>
+            <p className={`text-xs mt-1 ${isUser ? "text-text/60 text-right" : "text-muted"}`}>
               {new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </p>
           )}
@@ -82,7 +82,7 @@ export default function ChatBubble({
           <div className="ml-1">
             <button
               onClick={() => setSourcesOpen((o) => !o)}
-              className="flex items-center gap-1.5 text-xs text-muted hover:text-primary transition-colors"
+              className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

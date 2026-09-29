@@ -170,8 +170,125 @@ export async function sendMessage(
   });
 }
 
+/** Streaming counterpart of sendMessage, backed by /api/chat/message/stream
+ *  (Server-Sent Events). `onProgress` fires once per completed pipeline
+ *  stage with a short human label ("Building your response", ...) -- real
+ *  stage completions, not a fake timer, so it tracks whatever's actually
+ *  slow. Resolves with the exact same ChatResponse shape as sendMessage()
+ *  once the `done` event arrives.
+ *
+ *  Uses raw fetch + a ReadableStream reader (not EventSource) because
+ *  EventSource can't send the Authorization header or a POST body. */
+export async function sendMessageStream(
+  userId: string,
+  sessionId: string,
+  message: string,
+  onProgress: (label: string) => void,
+  language?: string
+): Promise<ChatResponse> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("nutribot_token") : null;
+  const res = await fetch(`${API_BASE}/api/chat/message/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ user_id: userId, session_id: sessionId, message, language: language ?? null }),
+  });
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(data.detail ?? `HTTP ${res.status}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by a blank line; each frame is one `event:`
+    // line and one `data:` line. The JSON payload is always single-line
+    // (JSON.stringify/model_dump_json escape embedded newlines), so a
+    // line-anchored regex is enough -- no SSE parsing library needed.
+    let sepIndex: number;
+    while ((sepIndex = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, sepIndex);
+      buffer = buffer.slice(sepIndex + 2);
+      const eventMatch = /^event:\s*(.+)$/m.exec(frame);
+      const dataMatch = /^data:\s*(.+)$/m.exec(frame);
+      if (!eventMatch || !dataMatch) continue;
+
+      const eventType = eventMatch[1].trim();
+      const data = JSON.parse(dataMatch[1]);
+      if (eventType === "progress") {
+        onProgress(data.label);
+      } else if (eventType === "done") {
+        return data as ChatResponse;
+      } else if (eventType === "error") {
+        throw new Error(data.detail ?? "Something went wrong generating a response.");
+      }
+    }
+  }
+
+  throw new Error("Connection closed before a response was received.");
+}
+
 /** Render a plan (proposed or accepted) to PDF on the server and hand the
  *  bytes back. Uses raw fetch because `request` assumes JSON. */
+// ── Medical documents ────────────────────────────────────────────────────────
+
+export type DocumentStatus = "uploaded" | "processing" | "processed" | "failed";
+
+export type MedicalDocument = {
+  id: string;
+  filename: string;
+  content_type: string;
+  status: DocumentStatus;
+  facts_extracted: number;
+  error_message: string | null;
+  uploaded_at: string;
+  processed_at: string | null;
+};
+
+export async function listDocuments(): Promise<MedicalDocument[]> {
+  return request<MedicalDocument[]>("/api/documents");
+}
+
+/** Multipart upload -- deliberately bypasses `request()`, which always sets
+ *  Content-Type: application/json; a FormData body needs the browser to set
+ *  its own Content-Type with the multipart boundary instead. */
+export async function uploadDocument(file: File): Promise<{ id: string; status: DocumentStatus; facts_extracted: number }> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("nutribot_token") : null;
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/api/documents/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const data = await res.json().catch(() => ({ detail: "Upload failed" }));
+  if (!res.ok) throw new Error(data.detail ?? `HTTP ${res.status}`);
+  return data;
+}
+
+export async function deleteDocument(documentId: string): Promise<{ status: string }> {
+  return request(`/api/documents/${encodeURIComponent(documentId)}`, { method: "DELETE" });
+}
+
+export async function deleteDocumentsBatch(documentIds: string[]): Promise<{ deleted_count: number; not_found_ids: string[] }> {
+  return request("/api/documents/delete-batch", {
+    method: "POST",
+    body: JSON.stringify({ document_ids: documentIds }),
+  });
+}
+
+export async function clearAllDocuments(): Promise<{ deleted_count: number; not_found_ids: string[] }> {
+  return request("/api/documents", { method: "DELETE" });
+}
+
 export async function downloadPlanPdf(plan: Record<string, unknown>): Promise<{ blob: Blob; filename: string }> {
   const res = await fetch(`${API_BASE}/api/plans/pdf`, {
     method: "POST",
@@ -225,6 +342,10 @@ export type ChatSession = {
 
 export async function getChatSessions(): Promise<{ sessions: ChatSession[] }> {
   return request("/api/chat/sessions");
+}
+
+export async function deleteSession(sessionId: string): Promise<{ status: string }> {
+  return request(`/api/chat/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
 }
 
 // ── Plans ──────────────────────────────────────────────────────────────────────
